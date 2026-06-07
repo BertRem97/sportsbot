@@ -1,0 +1,14 @@
+.env
+dist/
+build/
+*.log
+vendor/
+scrap/
+lib/
+lib64/
+include/
+bin/
+__pycache__/
+
+
+
