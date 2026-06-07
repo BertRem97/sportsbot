@@ -1,153 +1,143 @@
 import requests
-from config import ODDSPAPI_KEY  
+from pprint import pprint
+from config import ODDSPAPI_KEY, STARTING_BANKROLL
 from paper_trader import PaperTrader
-#from telegram_bot import send_message
-from config import *
-
 
 BASE_URL = "https://api.oddspapi.io"
 
 
-def get_tournaments(
-    language='en',
-):
+# ----------------------------
+# TOURNAMENTS
+# ----------------------------
+def get_tournaments(language="en", limit=18):
 
-    headers = {
-        "X-API-Key": ODDSPAPI_KEY
-    }
-    
     params = {
-              "sportId": "10",
-              "language": language,
-              "apiKey": ODDSPAPI_KEY
+        "sportId": "10",
+        "language": language,
+        "apiKey": ODDSPAPI_KEY
     }
 
-    response = requests.get(
-        f"{BASE_URL}/v4/tournaments?",
+    r = requests.get(f"{BASE_URL}/v4/tournaments", params=params, timeout=10)
+    r.raise_for_status()
+
+    return r.json()[:limit]
+
+
+# ----------------------------
+# ODDS FETCH
+# ----------------------------
+def get_tournament_odds(tournament_ids, bookmaker="unibet.be", language="en", verbosity=3):
+
+    if not tournament_ids:
+        return []
+
+    params = {
+        "tournamentIds": ",".join(map(str, tournament_ids)),
+        "bookmaker": bookmaker,
+        "language": language,
+        "verbosity": verbosity,
+        "apiKey": ODDSPAPI_KEY
+    }
+
+    r = requests.get(
+        f"{BASE_URL}/v4/odds-by-tournaments",
         params=params,
-        headers=headers
+        timeout=15
     )
 
-    response.raise_for_status()
-    data = response.json()
+    if r.status_code in [404, 429]:
+        return []
 
-    return data[:20]
-    
-    
-def get_tournament_odds(    
-    tournament_ids,
-    language='en',
-    verbosity=3
-):
+    r.raise_for_status()
+    return r.json()
 
-    headers = {
-        "X-API-Key": ODDSPAPI_KEY
-    }
-    
-    params = {"tournamentIds": "15,16,17", #!
-              "bookmaker": "unibet.be",
-              "language": language,
-              "verbosity": verbosity,
-              "apiKey": ODDSPAPI_KEY
+
+# ----------------------------
+# CHECK BOOKMAKER AVAILABILITY
+# (fixture-level check)
+# ----------------------------
+def tournament_available(tournament_id, bookmaker="unibet.be"):
+
+    params = {
+        "tournamentIds": str(tournament_id),
+        "bookmaker": bookmaker,
+        "language": "en",
+        "verbosity": 3,
+        "apiKey": ODDSPAPI_KEY
     }
 
-    response = requests.get(
-        f"{BASE_URL}/v4/odds-by-tournaments?",
-        params=params,
-        headers=headers
-    )
+    try:
+        r = requests.get(
+            f"{BASE_URL}/v4/odds-by-tournaments",
+            params=params,
+            timeout=10
+        )
 
-    response.raise_for_status()
-    data = response.json()
-    
-    return data
-   
+        if r.status_code in [404, 429]:
+            return False
 
-def market_consensus(bookmakers):
+        r.raise_for_status()
 
-    odds = []
+        data = r.json()
 
-    for bookie in bookmakers:
+        if not data:
+            return False
 
-        for outcome in bookie["outcomes"]:
-            odds.append(outcome["price"])
+        # check per fixture
+        for fixture in data:
+            if (
+                "bookmakerOdds" in fixture and
+                bookmaker in fixture["bookmakerOdds"]
+            ):
+                return True
 
-    return sum(odds) / len(odds)
+        return False
 
-
-def is_value_bet(
-    bookmaker_odd,
-    consensus,
-    threshold=0.03
-):
-
-    edge = (
-        bookmaker_odd -
-        consensus
-    ) / consensus
-
-    return edge > threshold
-    
-
-def kelly_fraction(
-    odds,
-    probability
-):
-
-    b = odds - 1
-
-    return (
-        odds * probability - 1
-    ) / b
-    
-
-def kelly_stake(
-    bankroll,
-    odds,
-    probability,
-    fraction=0.25
-):
-
-    kelly = kelly_fraction(
-        odds,
-        probability
-    )
-
-    if kelly <= 0:
-        return 0
-
-    return bankroll * kelly * fraction
+    except requests.exceptions.RequestException:
+        return False
 
 
+# ----------------------------
+# PAPER TRADER
+# ----------------------------
+trader = PaperTrader(bankroll=STARTING_BANKROLL)
 
 
+# ----------------------------
+# MAIN PIPELINE
+# ----------------------------
+def main():
+
+    events = get_tournaments()
+
+    valid_tournament_ids = []
+
+    print("Checking tournament availability...")
+
+    for event in events:
+
+        tournament_id = event["tournamentId"]
+
+        if tournament_available(16):
+            valid_tournament_ids.append(tournament_id)
+
+    print(f"\nValid tournaments: {valid_tournament_ids}\n")
+
+    if not valid_tournament_ids:
+        print("Geen tournaments beschikbaar voor deze bookmaker.")
+        return
+
+    # fetch odds
+    odds = get_tournament_odds(valid_tournament_ids)
+
+    if not odds:
+        print("Geen odds data ontvangen.")
+        return
+
+    pprint(odds)
 
 
+if __name__ == "__main__":
+    main()
 
-
-
-
-trader = PaperTrader(
-    bankroll=STARTING_BANKROLL
-)
-
-events = get_tournaments()
-tournament_ids = []
-
-for event in events:
-    tournament_id = event["tournamentId"]
-    tournament_ids.append(tournament_id)
-
-tournament_odds = get_tournament_odds(tournament_ids=tournament_ids)
-
-for tournament in tournament_odds:
-	bookmakerOdds = tournament['bookmakerOdds']
-	is_active = bookmakerOdds['unibet.be']['bookmakerIsActive']
-	markets = bookmakerOdds['unibet.be']['markets']
-	
-	for market in markets:
-		
-	
-	
-	print(list(markets.keys()))
 

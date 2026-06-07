@@ -9,6 +9,7 @@ lib64/
 include/
 bin/
 __pycache__/
+venv/
 
 
 
