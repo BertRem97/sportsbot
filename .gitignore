@@ -3,7 +3,6 @@ dist/
 build/
 *.log
 vendor/
-scrap/
 lib/
 lib64/
 include/
