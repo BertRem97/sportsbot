@@ -9,6 +9,8 @@ include/
 bin/
 __pycache__/
 venv/
+scrap/
+credentials.json
 
 
 
