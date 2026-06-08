@@ -190,7 +190,6 @@ def notify(data):
                 if dry_mode:
                     bet['hinge'] = True
                     bet["profit if A, X or B wins"] = data['result']['profit_if_a']
-                    trader = paper_trader
                     sheet = trader.connect_sheet(sheet_id)
                     trader.log_trade_gsheet(sheet, bet)
 
@@ -206,7 +205,6 @@ def notify(data):
             bet["bet overvalue"] = ov
            
             if dry_mode:
-                trader = paper_trader
                 sheet = trader.connect_sheet(sheet_id)
                 trader.log_trade_gsheet(sheet, bet)
       
@@ -215,9 +213,15 @@ def notify(data):
 # ---------------- EXAMPLE ----------------
 
 if __name__ == "__main__":
-    dry_mode = True
-    bankroll = float(input("Bankroll: "))
+    trader = paper_trader
     sheet_id = "1Q2ALPTkGx8SICor1c4cDjZWI5Ewg_OKugvr0yUNY_WQ"
+    dry_mode = True
+    if dry_mode:
+        sheet = trader.connect_sheet(sheet_id)
+        bankroll = float(sheet.acell("R2").value.replace(",","."))
+        print(bankroll)
+
+
     kelly_factor = 0.15
     odds_a = float(input("Quotering Value bet: "))
     odds_x = float(input("Quotering Tie bet: "))
