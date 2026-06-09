@@ -1,248 +1,166 @@
-import os
-import requests
-from dataclasses import dataclass
-from dotenv import load_dotenv
+import gspread
+from google.oauth2.service_account import Credentials
 import datetime
-import json
-import csv
-import paper_trader
-
-load_dotenv()
 
 
-# ---------------- TELEGRAM ----------------
+# ---------------- GOOGLE SHEETS ----------------
 
-def send_telegram(msg: str):
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
 
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-
-    requests.post(url, json={
-        "chat_id": chat_id,
-        "text": msg
-    })
+SHEET_ID = "1Q2ALPTkGx8SICor1c4cDjZWI5Ewg_OKugvr0yUNY_WQ"
+CREDS_FILE = "credentials.json"
 
 
-# ---------------- KELLY ----------------
-
-def kelly_fraction(odds, p):
-    b = odds - 1
-    q = 1 - p
-    return (b * p - q) / b
+def connect_sheet():
+    creds = Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES)
+    client = gspread.authorize(creds)
+    return client.open_by_key(SHEET_ID).sheet1
 
 
-def fractional_kelly(bankroll, kelly, fraction=0.25):
-    return max(0, bankroll * kelly * fraction)
+# ---------------- MATH ----------------
 
+def implied_probs(odds_list):
+    """Convert odds → normalized true probabilities"""
+    inv = [1 / o for o in odds_list]
+    print(inv)
+    total = sum(inv)
+    true_probs = [i / total for i in inv]
 
-# ---------------- PROBABILITIES ----------------
+    return true_probs
 
-def implied_prob(odds):
-    return 1 / odds
+def hedge_1x2(stake_val, odds, index):
+    payout = stake_val * odds[index]
+    other_odds = odds[~index]
 
+    return payout / other_odds[0], payout / other_odds[1]
 
-# ---------------- INITIAL BET (VALUE) ----------------
-
-def initial_bet(bankroll, odds, true_prob, kelly_factor=0.25):
-    k = kelly_fraction(odds, true_prob)
-    return fractional_kelly(bankroll, k, kelly_factor)
-
-
-# ---------------- 1X2 HEDGE ----------------
-
-def hedge_1x2(stake_a, odds_a, odds_x, odds_b):
-    """
-    Hedge A against X and B simultaneously
-    """
-
-    payout_a = stake_a * odds_a
-
-    # hedge sizing: match payout
-    stake_x = payout_a / odds_x
-    stake_b = payout_a / odds_b
-
-    return stake_x, stake_b
-
-
-# ---------------- EVALUATION ----------------
-
-def evaluate_1x2(stake_a, odds_a, stake_x, odds_x, stake_b, odds_b):
-
-    payout_a = stake_a * odds_a
-    payout_x = stake_x * odds_x
-    payout_b = stake_b * odds_b
-
-    profit_if_a = payout_a - stake_a - stake_x - stake_b
-    profit_if_x = payout_x - stake_a - stake_x - stake_b
-    profit_if_b = payout_b - stake_a - stake_x - stake_b
-
-    return {
-        "profit_if_a": profit_if_a,
-        "profit_if_x": profit_if_x,
-        "profit_if_b": profit_if_b,
-        "worst_case": min(profit_if_a, profit_if_x, profit_if_b)
-    }
-
-
-# ---------------- STRATEGY ENGINE ----------------
-
-def run_strategy(
-    bankroll,
-    odds_a,
-    odds_x,
-    odds_b,
-    true_prob_a,
-    kelly_factor=0.25,
-    hinge=False
-):
-    stake_a = 0
-    stake_x = 0
-    stake_b = 0
-    result = 0
-
-
-    if hinge:
-        # 1. value bet (A)
-        stake_a = initial_bet(bankroll, odds_a, true_prob_a, kelly_factor)
-
-        # 2. hedge positions
-        stake_x, stake_b = hedge_1x2(stake_a, odds_a, odds_x, odds_b)
-
-        # 3. evaluate
-        result = evaluate_1x2(stake_a, odds_a, stake_x, odds_x, stake_b, odds_b)
-
-
-    else:
-        stake_a = initial_bet(bankroll, odds_a, true_prob_a, kelly_factor)
-        result = evaluate_1x2(stake_a, odds_a, stake_x, odds_x, stake_b, odds_b)
-        
-        
-    return {
-        "stake_a": stake_a,
-        "stake_x": stake_x,
-        "stake_b": stake_b,
-        "odds": {
-            "A": odds_a,
-            "X": odds_x,
-            "B": odds_b
-        },
-        "result": result
-    }
-
-
-# ---------------- ALERT ----------------
-
-def notify(data):
-
-    team_names = input('Voer de beide namen in bv (Colombia - Jordanië): ')
-    time = datetime.datetime.now()
-    land = str(input("Voer het land/ werelddeel in van de match: "))
-    league = str(input("Voer de subcategorie (league) in: "))  
-
-    bet = {
-            "teamnames": team_names,
-            "land": land,
-            "league": league,
-            "time": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "stake value bet": data['stake_a'],
-            "odds value bet": data['odds']['A'],
-            "stake tie bet": data['stake_x'],
-            "odds tie bet": data['odds']['X'],
-            "stake other bet": data['stake_b'],
-            "odds other bet": data["odds"]["B"],
-            "profit if A, X or B wins": "",
-            "profit if value bet won": "",
-            "loss if value bet lost": "",
-            "bet overvalue": "",
-            "hinge": False
-        }
+def calculate_stakes_wkelly(bankroll, odds,
+                             index, p, fraction=0.5):
     
+    implied_odds = odds[index]
    
-    if ev < 1:
-        print(ev)
-        msg = f"""
-    📊 1X2 HEDGE SYSTEM
+    p = 1 / p
+    b = implied_odds - 1
+    q = 1 - p
+    f = (b*p - q) / b
+   
+    if b <= 0:
+        return 0
+    
+    stake_value = bankroll * f * fraction
+    stake_x, stake_y = hedge_1x2(stake_value, odds, index)
+    
+    print(f"overige stakes: ", stake_x, stake_y)
+    return stake_value, stake_x, stake_y
 
-    Stake A (value bet): €{data['stake_a']:.2f}
-    Stake X (hedge): €{data['stake_x']:.2f}
-    Stake B (hedge): €{data['stake_b']:.2f}
 
-    Odds:
-    A: {data['odds']['A']}
-    X: {data['odds']['X']}
-    B: {data['odds']['B']}
+def ev_calc(implied_odds_true_probs, idx, stakes[0]):
+    implied_odd_val = implied_odds_true_probs
 
-    Profit if A wins: €{data['result']['profit_if_a']:.2f}
-    Profit if X wins: €{data['result']['profit_if_x']:.2f}
-    Profit if B wins: €{data['result']['profit_if_b']:.2f}
+    return (p * (odds - 1)) - (1 - p)
 
-    Worst case: €{data['result']['worst_case']:.2f}
-    """
+
+# ---------------- USER INPUT ----------------
+
+def get_market():
+    print("\n=== MARKET INPUT ===")
+
+    n = int(input("Aantal outcomes (2 of 3): "))
+
+    teams = []
+    odds = []
   
-        if data['result']['worst_case'] > 0:
-            #send_telegram(msg)
-            print(msg)
-            print("Hinge mogelijk!")
-            betplaced = input("Wil je deze bet plaatsen (dry mode)? Y/N: ")
+    for i in range(n):
+        name = input(f"Naam outcome {i+1}: ")
+        odd = float(input(f"Odds {name}: "))
+        teams.append(name)
+        odds.append(odd)
 
-            if betplaced == 'Y':
-                if dry_mode:
-                    bet['hinge'] = True
-                    bet["profit if A, X or B wins"] = data['result']['profit_if_a']
-                    sheet = trader.connect_sheet(sheet_id)
-                    trader.log_trade_gsheet(sheet, bet)
+    league = input("Voer de league in bv WK: ")
+    land = input("In welk land vind de wedstrijd plaats?: ")
+    value_team = input("\nOp welke outcome heb je VALUE bet? ")
+    true_prob = input("Wat is de ware kans dat het team wint?: ")
 
+    return teams, odds, value_team, league, land, true_prob
+
+
+# ---------------- STRATEGY ----------------
+
+def build_bet(bankroll, teams, odds, value_team, true_prob_val):
+    probs = implied_probs(odds)
+    idx = teams.index(value_team)
+    bet_placed = teams[idx]
+    implied_odd_val = odds[idx]
+
+    print(bet_placed)
+
+    stakes = []
+
+    stakes.append(calculate_stakes_wkelly(bankroll, odds, 
+                                          idx, true_prob_val))
+                              
+    
+    ev = ev_calc(implied_odd_val, idx, stakes[0])
+
+
+    return {
+        "teams": teams,
+        "odds": odds,
+        "probs": probs,
+        "ev": ev,
+        "bet_placed":bet_placed,
+        "stakes": stakes,
+        "worst_case": min(stakes) * -1  # simplified risk view
+    }
+
+
+# ---------------- GOOGLE SHEETS LOG ----------------
+
+def log_to_sheet(sheet, bet):
+
+    row = [
+         datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "-".join(bet["teams"]),
+        ", ".join(map(str, bet["odds"])),
+        ", ".join([str(round(p, 4)) for p in bet["probs"]]),
+        bet["ev"],
+        bet["stakes"][bet["value_idx"]],
+        ", ".join([str(round(s, 2)) for s in bet["stakes"]])
+    ]
+
+    sheet.append_row(row, value_input_option="USER_ENTERED")
+
+
+# ---------------- MAIN ----------------
+
+def main():
+
+    sheet = connect_sheet()
+
+    bankroll = float(sheet.acell("R2").value.replace(",",""))
+    teams, odds, value_team, league, land, true_prob = get_market()
+
+    bet = build_bet(bankroll, teams, odds, value_team, true_prob)
+
+    print("\n=== RESULT ===")
+    print("EV:", round(bet["ev"], 4))
+    print("Stakes:", bet["stakes"])
+
+    if bet["ev"] > 0:
+        print("✔ Value bet gevonden!")
+
+        confirm = input("Log naar Google Sheets? (Y/N): ")
+
+        if confirm.lower() == "y":
+            log_to_sheet(sheet, bet)
+            print("✔ Opgeslagen in Google Sheets")
 
     else:
+        print("✖ Geen value bet")
 
-        print("Geen hinge mogelijk, enkel value bet zonder bescherming van verlies")
-        betplaced = input("Wil je deze bet alsnog plaatsen (dry mode)? Y/N: ")
-        if betplaced == 'Y':
-            ov = float(input("Wat is de overwaarde % volgens Oddspedia?: "))
-            bet["profit if value bet won"] = data['result']['profit_if_a']
-            bet["loss if value bet lost"] = data['stake_a']
-            bet["bet overvalue"] = ov
-           
-            if dry_mode:
-                sheet = trader.connect_sheet(sheet_id)
-                trader.log_trade_gsheet(sheet, bet)
-      
-        
-
-# ---------------- EXAMPLE ----------------
 
 if __name__ == "__main__":
-    trader = paper_trader
-    sheet_id = "1Q2ALPTkGx8SICor1c4cDjZWI5Ewg_OKugvr0yUNY_WQ"
-    dry_mode = True
-    if dry_mode:
-        sheet = trader.connect_sheet(sheet_id)
-        bankroll = float(sheet.acell("R2").value.replace(",","."))
-        print(bankroll)
-
-
-    kelly_factor = 0.15
-    odds_a = float(input("Quotering Value bet: "))
-    odds_x = float(input("Quotering Tie bet: "))
-    odds_b = float(input("Quotering Other possibility: "))
-
-    true_prob_a = float(input("Gemiddelde quotering (marktconsensus) value bet A: "))
-    ev = 1 / odds_a + 1 / odds_x + 1 / odds_b
-
-    data = run_strategy(
-            bankroll,
-            odds_a,
-            odds_x,
-            odds_b,
-            true_prob_a,
-            kelly_factor=0.15,
-            hinge=False
-        )
-    
-    if ev < 1:
-        notify(data(hinge=True))
-        
-    else:
-        notify(data)
-        
+    main()
