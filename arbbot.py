@@ -42,7 +42,7 @@ def hedge_1x2(stake_val, odds, index):
     print(stake_val)
     print(payout)
     print(f"other odds {other_odds}")
-    return payout / other_odds[0], payout / other_odds[1]
+    return payout / other_odds[0], payout / other_odds[1], payout
 
 def calculate_ev_stakes_wkelly(bankroll, odds,
                              index, p, hinge, fraction=0.5):
@@ -70,13 +70,13 @@ def calculate_ev_stakes_wkelly(bankroll, odds,
            
     
     if hinge:
-        stake_x, stake_y = hedge_1x2(stake_value, odds, index)
+        stake_x, stake_y, payout = hedge_1x2(stake_value, odds, index)
     
         stakes["stake_x"] = stake_x
         stakes["stake_y"] = stake_y
 
     print(stakes)
-    return stakes, ev
+    return stakes, ev, payout
 
 # ---------------- USER INPUT ----------------
 
@@ -108,52 +108,58 @@ def build_bet(bankroll, outcomes, odds, value_team, true_prob_val):
     hinge = implied_probs(odds)
     idx = outcomes.index(value_team)
     bet_placed = outcomes[idx]
-    implied_odd_val = odds[idx]
+    
 
     print(bet_placed)
 
-    stakes_list = []
-    stakes, ev = calculate_ev_stakes_wkelly(bankroll, odds, 
+    stakes, ev, payout = calculate_ev_stakes_wkelly(bankroll, odds, 
                                           idx, true_prob_val, hinge)
     
-    stakes_list.append([i for i in stakes.values()])
 
+    total_stakes = (lambda x: sum(x))([i for i in stakes.values()])
+    net_profit = payout - total_stakes
+    print(total_stakes)
     data = {
         "outcomes": outcomes,
         "odds": odds,
         "ev": ev,
         "bet_placed":bet_placed,
         "stakes": stakes,
-        "hinge": False
+        "hinge": False,
+        "net_profit": net_profit,
+        "total_stake": total_stakes,
+        "outcome_bet": value_team
         }  
 
-   
-    data["hinge"] == True if hinge else False   
+    if hinge:
+        data["hinge"] == True
+
+
     return data
 
 
 # ---------------- GOOGLE SHEETS LOG ----------------
 
 def log_to_sheet(sheet, bet, league, land, teams):
-
-    secured_profit_hinge = 0 bet['stakes'][0] * bet['odds'][0]
+    bet1_outcome1 = bet["outcomes"][0], bet["odds"][0]
+    print(bet1_outcome1)
     row = [
          datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "-".join(bet["outcomes"]),
         teams,
         land,
         league,
-        (bet["outcomes"][0], bet["odds"][0]),
-        (bet["outcomes"][1], bet["odds"][1]),
-        (bet["outcomes"][2], bet["odds"][2]),
-        bet["ev"],
+        f"{bet['outcomes'][0]} @ {bet['odds'][0]}",
+        f"{bet['outcomes'][1]} @ {bet['odds'][1]}",
+        f"{bet['outcomes'][2]} @ {bet['odds'][2]}",
         bet["hinge"],
-        bet['stakes'][0]
-        bet["stakes"][bet["value_idx"]],
-        ", ".join([str(round(s, 2)) for s in bet["stakes"]])
-        ]
-
-    sheet.append_row(row, value_input_option="USER_ENTERED")
+        bet['net_profit'],
+        bet['total_stake']
+    ]
+       
+    next_row = len(sheet.get_all_values()) + 1
+    sheet.update(
+        f"A{next_row}:P{next_row}",
+        [row])
 
 
 # ---------------- MAIN ----------------
@@ -162,12 +168,13 @@ def main():
 
     sheet = connect_sheet()
 
-    bankroll = float(sheet.acell("R2").value.replace(",","."))
+    bankroll = float(sheet.acell("M2").value.replace(",","."))
     print(bankroll)
     outcomes, odds, value_team, league, land, true_prob, teams = get_market()
 
     bet = build_bet(bankroll, outcomes, odds, value_team, true_prob)
-
+    print(bet['hinge'])
+    
     if bet["ev"] > 0:
         print("✔ Value bet gevonden!")
         if bet["hinge"]:
