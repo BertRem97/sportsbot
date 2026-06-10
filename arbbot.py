@@ -132,11 +132,10 @@ def build_bet(bankroll, outcomes, odds, value_team, true_prob_val):
         }  
 
     if hinge:
-        data["hinge"] == True
+        data["hinge"] = True
 
 
     return data
-
 
 # ---------------- GOOGLE SHEETS LOG ----------------
 
@@ -174,7 +173,7 @@ def main():
 
     bet = build_bet(bankroll, outcomes, odds, value_team, true_prob)
     print(bet['hinge'])
-    
+
     if bet["ev"] > 0:
         print("✔ Value bet gevonden!")
         if bet["hinge"]:
