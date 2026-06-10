@@ -72,8 +72,8 @@ def calculate_ev_stakes_wkelly(bankroll, odds,
     if hinge:
         stake_x, stake_y = hedge_1x2(stake_value, odds, index)
     
-        stakes[stake_x] = stake_x
-        stakes[stake_y] = stake_y
+        stakes["stake_x"] = stake_x
+        stakes["stake_y"] = stake_y
 
     print(stakes)
     return stakes, ev
@@ -85,13 +85,13 @@ def get_market():
 
     n = int(input("Aantal outcomes (2 of 3): "))
 
-    teams = []
+    outcomes = []
     odds = []
-  
+    teams = input("Voer teamnames in met '-' bv Belgie - Afrika: ")
     for i in range(n):
         name = input(f"Naam outcome {i+1}: ")
         odd = float(input(f"Odds {name}: "))
-        teams.append(name)
+        outcomes.append(name)
         odds.append(odd)
 
     league = input("Voer de league in bv WK: ")
@@ -99,15 +99,15 @@ def get_market():
     value_team = input("\nOp welke outcome heb je VALUE bet? ")
     true_prob = float(input("Wat is de ware kans dat het team wint bv'%30 ?: "))
 
-    return teams, odds, value_team, league, land, true_prob
+    return outcomes, odds, value_team, league, land, true_prob, teams
 
 
 # ---------------- STRATEGY ----------------
 
-def build_bet(bankroll, teams, odds, value_team, true_prob_val):
+def build_bet(bankroll, outcomes, odds, value_team, true_prob_val):
     hinge = implied_probs(odds)
-    idx = teams.index(value_team)
-    bet_placed = teams[idx]
+    idx = outcomes.index(value_team)
+    bet_placed = outcomes[idx]
     implied_odd_val = odds[idx]
 
     print(bet_placed)
@@ -117,32 +117,41 @@ def build_bet(bankroll, teams, odds, value_team, true_prob_val):
                                           idx, true_prob_val, hinge)
     
     stakes_list.append([i for i in stakes.values()])
-                   
-    print(stakes)
-    return {
-        "teams": teams,
+
+    data = {
+        "outcomes": outcomes,
         "odds": odds,
         "ev": ev,
         "bet_placed":bet_placed,
         "stakes": stakes,
-        "hinge": False,
-        "worst_case": min(stakes) * -1  # simplified risk view
-    }
+        "hinge": False
+        }  
+
+   
+    data["hinge"] == True if hinge else False   
+    return data
 
 
 # ---------------- GOOGLE SHEETS LOG ----------------
 
-def log_to_sheet(sheet, bet):
+def log_to_sheet(sheet, bet, league, land, teams):
 
+    secured_profit_hinge = 0 bet['stakes'][0] * bet['odds'][0]
     row = [
          datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "-".join(bet["teams"]),
-        ", ".join(map(str, bet["odds"])),
-        ", ".join([str(round(p, 4)) for p in bet["probs"]]),
+        "-".join(bet["outcomes"]),
+        teams,
+        land,
+        league,
+        (bet["outcomes"][0], bet["odds"][0]),
+        (bet["outcomes"][1], bet["odds"][1]),
+        (bet["outcomes"][2], bet["odds"][2]),
         bet["ev"],
+        bet["hinge"],
+        bet['stakes'][0]
         bet["stakes"][bet["value_idx"]],
         ", ".join([str(round(s, 2)) for s in bet["stakes"]])
-    ]
+        ]
 
     sheet.append_row(row, value_input_option="USER_ENTERED")
 
@@ -155,9 +164,9 @@ def main():
 
     bankroll = float(sheet.acell("R2").value.replace(",","."))
     print(bankroll)
-    teams, odds, value_team, league, land, true_prob = get_market()
+    outcomes, odds, value_team, league, land, true_prob, teams = get_market()
 
-    bet = build_bet(bankroll, teams, odds, value_team, true_prob)
+    bet = build_bet(bankroll, outcomes, odds, value_team, true_prob)
 
     if bet["ev"] > 0:
         print("✔ Value bet gevonden!")
@@ -165,13 +174,13 @@ def main():
             print("Hinge mogelijk ✔")
 
         print("\n=== RESULT ===")
-        print("EV:", round(bet["ev"], 4))
+        print("EV:", f"{round(bet['ev'], 4)}%")
         print("Stakes:", bet["stakes"])
 
         confirm = input("Log naar Google Sheets? (Y/N): ")
 
         if confirm.lower() == "y":
-            log_to_sheet(sheet, bet)
+            log_to_sheet(sheet, bet, league, land, teams)
             print("✔ Opgeslagen in Google Sheets")
 
     else:
