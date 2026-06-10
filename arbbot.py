@@ -71,11 +71,11 @@ def calculate_ev_stakes_wkelly(bankroll, odds,
     
     if hinge:
         stake_x, stake_y = hedge_1x2(stake_value, odds, index)
-        
-        print(f"overige stakes: ", stake_x, stake_y)
+    
         stakes[stake_x] = stake_x
         stakes[stake_y] = stake_y
 
+    print(stakes)
     return stakes, ev
 
 # ---------------- USER INPUT ----------------
