@@ -24,44 +24,59 @@ def connect_sheet():
 
 def implied_probs(odds_list):
     """Convert odds → normalized true probabilities"""
+    hinge = False
     inv = [1 / o for o in odds_list]
     print(inv)
     total = sum(inv)
     true_probs = [i / total for i in inv]
 
-    return true_probs
+    if total < 1:
+        hinge = True
+
+    return hinge
 
 def hedge_1x2(stake_val, odds, index):
     payout = stake_val * odds[index]
-    other_odds = odds[~index]
+    other_odds = [odd for i, odd in enumerate(odds) if i != index]
 
+    print(stake_val)
+    print(payout)
+    print(f"other odds {other_odds}")
     return payout / other_odds[0], payout / other_odds[1]
 
-def calculate_stakes_wkelly(bankroll, odds,
-                             index, p, fraction=0.5):
+def calculate_ev_stakes_wkelly(bankroll, odds,
+                             index, p, hinge, fraction=0.5):
     
     implied_odds = odds[index]
-   
-    p = 1 / p
+    p = p / 100
     b = implied_odds - 1
     q = 1 - p
     f = (b*p - q) / b
+
+    print(f"kellyf", {f})
+    print(f"bankroll {bankroll}")
+
+    ev = (p * b) - (q * 1)
+    print(ev)
    
     if b <= 0:
         return 0
     
     stake_value = bankroll * f * fraction
-    stake_x, stake_y = hedge_1x2(stake_value, odds, index)
+
+    stakes = {"stake_val": stake_value,
+            "stake_x": None,
+            "stake_y": None}
+           
     
-    print(f"overige stakes: ", stake_x, stake_y)
-    return stake_value, stake_x, stake_y
+    if hinge:
+        stake_x, stake_y = hedge_1x2(stake_value, odds, index)
+        
+        print(f"overige stakes: ", stake_x, stake_y)
+        stakes[stake_x] = stake_x
+        stakes[stake_y] = stake_y
 
-
-def ev_calc(implied_odds_true_probs, idx, stakes[0]):
-    implied_odd_val = implied_odds_true_probs
-
-    return (p * (odds - 1)) - (1 - p)
-
+    return stakes, ev
 
 # ---------------- USER INPUT ----------------
 
@@ -82,7 +97,7 @@ def get_market():
     league = input("Voer de league in bv WK: ")
     land = input("In welk land vind de wedstrijd plaats?: ")
     value_team = input("\nOp welke outcome heb je VALUE bet? ")
-    true_prob = input("Wat is de ware kans dat het team wint?: ")
+    true_prob = float(input("Wat is de ware kans dat het team wint bv'%30 ?: "))
 
     return teams, odds, value_team, league, land, true_prob
 
@@ -90,29 +105,27 @@ def get_market():
 # ---------------- STRATEGY ----------------
 
 def build_bet(bankroll, teams, odds, value_team, true_prob_val):
-    probs = implied_probs(odds)
+    hinge = implied_probs(odds)
     idx = teams.index(value_team)
     bet_placed = teams[idx]
     implied_odd_val = odds[idx]
 
     print(bet_placed)
 
-    stakes = []
-
-    stakes.append(calculate_stakes_wkelly(bankroll, odds, 
-                                          idx, true_prob_val))
-                              
+    stakes_list = []
+    stakes, ev = calculate_ev_stakes_wkelly(bankroll, odds, 
+                                          idx, true_prob_val, hinge)
     
-    ev = ev_calc(implied_odd_val, idx, stakes[0])
-
-
+    stakes_list.append([i for i in stakes.values()])
+                   
+    print(stakes)
     return {
         "teams": teams,
         "odds": odds,
-        "probs": probs,
         "ev": ev,
         "bet_placed":bet_placed,
         "stakes": stakes,
+        "hinge": False,
         "worst_case": min(stakes) * -1  # simplified risk view
     }
 
@@ -140,17 +153,20 @@ def main():
 
     sheet = connect_sheet()
 
-    bankroll = float(sheet.acell("R2").value.replace(",",""))
+    bankroll = float(sheet.acell("R2").value.replace(",","."))
+    print(bankroll)
     teams, odds, value_team, league, land, true_prob = get_market()
 
     bet = build_bet(bankroll, teams, odds, value_team, true_prob)
 
-    print("\n=== RESULT ===")
-    print("EV:", round(bet["ev"], 4))
-    print("Stakes:", bet["stakes"])
-
     if bet["ev"] > 0:
         print("✔ Value bet gevonden!")
+        if bet["hinge"]:
+            print("Hinge mogelijk ✔")
+
+        print("\n=== RESULT ===")
+        print("EV:", round(bet["ev"], 4))
+        print("Stakes:", bet["stakes"])
 
         confirm = input("Log naar Google Sheets? (Y/N): ")
 
