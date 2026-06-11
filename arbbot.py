@@ -144,11 +144,11 @@ def log_to_sheet(sheet, bet, league, land, teams):
         f"{bet['outcomes'][1]} @ {bet['odds'][1]}", 
         f"{bet['outcomes'][2]} @ {bet['odds'][2]}" if len(bet['outcomes']) == 3 else 0,
         bet["hinge"],
-        bet['net_profit'],
-        bet["stake_val_bet"],
-        bet['total_stake'],
+        "{:.2f}".format(bet['net_profit']),
+        "{:.2f}".format(bet['stake_val_bet']),
+        "{:.2f}".format(bet['total_stake']),
         bet["outcome_bet"],
-        bet["ev"]
+        "{:.2f}".format(bet["ev"])
     ]
        
     next_row = len(sheet.get_all_values()) + 1
