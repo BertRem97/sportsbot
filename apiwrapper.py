@@ -8,7 +8,25 @@ BASE_URL = "https://api.oddspapi.io"
 LAST_REQUEST = 0
 
 def extract_market_odds(fixture):
+
+    tournament_id = fixture["fixtureId"]
+    params = {
+        "fixtureId": tournament_id,
+        "bookmakers": BOOKMAKER,
+        "language": "en",
+        "verbosity": 3,
+        "apiKey": ODDSPAPI_KEY
+    }
+
     data = []
+    
+    event = api_get('/v4/odds', params)
+    pprint(event)
+    print(event.keys())
+
+
+
+
 
     bookmaker_odds = fixture["bookmakerOdds"]
     data_bookie = bookmaker_odds[BOOKMAKER]
@@ -38,13 +56,10 @@ def api_get(endpoint, params):
 
     LAST_REQUEST = time.time()
 
-
     if response.status_code != 200:
         print(response.text)
 
-
     response.raise_for_status()
-
     return response.json()
 
 
@@ -159,11 +174,13 @@ print(f"\n{len(fixtures)} wedstrijden gevonden")
 
 for fixture in fixtures[:10]:
 
-    odds = extract_market_odds(fixture)
-    for odd in odds:
-        betslip_url = odd["betslip"]
-        last_change = odd["changedAt"]
-        limit = odd["limit"]
-        price = odd["price"]
+    #odds = extract_market_odds(fixture)
+    #for odd in odds:
+        #betslip_url = odd["betslip"]
+        #last_change = odd["changedAt"]
+        #limit = odd["limit"]
+        #price = odd["price"]
+
+       
 
         
