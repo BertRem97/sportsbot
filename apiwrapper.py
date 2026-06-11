@@ -21,13 +21,6 @@ def extract_market_odds(fixture):
     data = []
     
     event = api_get('/v4/odds', params)
-    pprint(event)
-    print(event.keys())
-
-
-
-
-
     bookmaker_odds = fixture["bookmakerOdds"]
     data_bookie = bookmaker_odds[BOOKMAKER]
     market = data_bookie["markets"]
@@ -37,7 +30,7 @@ def extract_market_odds(fixture):
         market_data = outcomes[market_id]["players"]["0"]
         data.append(market_data)
 
-    return data
+    return event
 
 def api_get(endpoint, params):
 
@@ -174,13 +167,23 @@ print(f"\n{len(fixtures)} wedstrijden gevonden")
 
 for fixture in fixtures[:10]:
 
-    #odds = extract_market_odds(fixture)
-    #for odd in odds:
+    data = extract_market_odds(fixture)
+    name_team_1 = data['participant1Name']
+    name_team_2 = data['participant2Name']
+    sport = data['sportName']
+    statusname = data['statusName']
+    tournament_name = data['tournamentName']
+
+    print(name_team_1)
+    print(name_team_2)
+    print(sport)
+    print(statusname)
+    print(tournament_name)
+    
+    
+    #for odd in data:
+        #print(odd)
         #betslip_url = odd["betslip"]
         #last_change = odd["changedAt"]
         #limit = odd["limit"]
         #price = odd["price"]
-
-       
-
-        
