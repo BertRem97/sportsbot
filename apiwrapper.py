@@ -8,6 +8,7 @@ BASE_URL = "https://api.oddspapi.io"
 LAST_REQUEST = 0
 
 def extract_market_odds(fixture):
+    data = []
 
     bookmaker_odds = fixture["bookmakerOdds"]
     data_bookie = bookmaker_odds[BOOKMAKER]
@@ -16,11 +17,9 @@ def extract_market_odds(fixture):
     for market_id, market_data in market.items():
         outcomes = market_data["outcomes"]
         market_data = outcomes[market_id]["players"]["0"]
+        data.append(market_data)
 
-        pprint(market_data)
-
-  
-    
+    return data
 
 def api_get(endpoint, params):
 
@@ -62,7 +61,6 @@ def get_tournaments(sport_id=10):
     )
 
 
-
 def get_odds_by_tournaments(
         tournament_ids,
         bookmaker="unibet.be"
@@ -78,12 +76,10 @@ def get_odds_by_tournaments(
         "apiKey": ODDSPAPI_KEY
     }
 
-
     return api_get(
         "/v4/odds-by-tournaments",
         params
     )
-
 
 
 def get_available_tournaments(
@@ -98,30 +94,24 @@ def get_available_tournaments(
         for t in tournaments
     ]
 
-
     for i in range(0, len(ids), 5):
 
         batch = ids[i:i+5]
         try:
-
             fixtures = get_odds_by_tournaments(
                 batch,
                 bookmaker
             )
 
-
             for fixture in fixtures:
-
                 tournament_id = fixture["tournamentId"]
-
 
                 match = next(
                     (
                         t for t in tournaments
                         if t["tournamentId"] == tournament_id
                     ),
-                    None
-                )
+                    None)
 
 
                 if match and match not in available:
@@ -130,72 +120,50 @@ def get_available_tournaments(
         except requests.exceptions.HTTPError as e:
 
             print(
-                f"Batch {batch} overgeslagen"
-            )
+                f"Batch {batch} overgeslagen")
 
             continue
-
-
     return available
 
 
 BOOKMAKER = "bwin.be"
-
-
-# 1. Alle competities
-
 tournaments = get_tournaments()[:20]
 
 print(
     f"{len(tournaments)} competities gevonden"
 )
 
-
-
-# 2. Filter enkel competities met bookmaker odds
-
 available = get_available_tournaments(
     tournaments,
     BOOKMAKER
 )
 
-
 print("\nBeschikbare competities:\n")
-
 
 for t in available:
 
-    print(
-        t["tournamentId"],
-        "-",
-        t["categoryName"],
-        "-",
-        t["tournamentName"]
+    print(t["tournamentId"],"-",t["categoryName"],
+          "-",t["tournamentName"]
     )
-
-# 3. Kies competitie
 
 league_id = int(
-    input(
-        "\nGeef tournament ID: "
+    input("\nGeef tournament ID: ")
     )
-)
-
-# 4. Haal wedstrijden op
 
 fixtures = get_odds_by_tournaments(
     [league_id],
-    BOOKMAKER
-)
+    BOOKMAKER)
 
-print(
-    f"\n{len(fixtures)} wedstrijden gevonden")
+print(f"\n{len(fixtures)} wedstrijden gevonden")
 
 
 for fixture in fixtures[:10]:
 
-    print("\n----------------")
-
     odds = extract_market_odds(fixture)
     for odd in odds:
-        print(odd)
+        betslip_url = odd["betslip"]
+        last_change = odd["changedAt"]
+        limit = odd["limit"]
+        price = odd["price"]
+
+        
