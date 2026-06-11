@@ -53,12 +53,8 @@ def calculate_ev_stakes_wkelly(bankroll, odds,
     q = 1 - p
     f = (b*p - q) / b
 
-    print(f"kellyf", {f})
-    print(f"bankroll {bankroll}")
-
     ev = (p * b) - (q * 1)
-    print(ev)
-   
+
     if b <= 0:
         return 0
     
@@ -88,17 +84,17 @@ def get_market():
     outcomes = []
     odds = []
     teams = input("Voer teamnames in met '-' bv Belgie - Afrika: ")
-    for i in range(n):
-        name = input(f"Naam outcome {i+1}: ")
-        odd = float(input(f"Odds {name}: "))
-        outcomes.append(name)
-        odds.append(odd)
-
     league = input("Voer de league in bv WK: ")
     land = input("In welk land vind de wedstrijd plaats?: ")
     value_team = input("\nOp welke outcome heb je VALUE bet? ")
     true_prob = float(input("Wat is de ware kans dat het team wint bv'%30 ?: "))
 
+    for i in range(n):
+        name = input(f"Naam outcome {i+1}: ")
+        odd = float(input(f"Odds {name}: "))
+        outcomes.append(name)
+        odds.append(odd)
+    
     return outcomes, odds, value_team, league, land, true_prob, teams
 
 
@@ -108,9 +104,6 @@ def build_bet(bankroll, outcomes, odds, value_team, true_prob_val):
     hinge = implied_probs(odds)
     idx = outcomes.index(value_team)
     bet_placed = outcomes[idx]
-    
-
-    print(bet_placed)
 
     stakes, ev, payout = calculate_ev_stakes_wkelly(bankroll, odds, 
                                           idx, true_prob_val, hinge)
@@ -118,7 +111,7 @@ def build_bet(bankroll, outcomes, odds, value_team, true_prob_val):
 
     total_stakes = (lambda x: sum(x))([i for i in stakes.values() if i is not None])
     net_profit = payout - total_stakes
-    print(total_stakes)
+ 
     data = {
         "outcomes": outcomes,
         "odds": odds,
@@ -140,8 +133,6 @@ def build_bet(bankroll, outcomes, odds, value_team, true_prob_val):
 # ---------------- GOOGLE SHEETS LOG ----------------
 
 def log_to_sheet(sheet, bet, league, land, teams):
-    bet1_outcome1 = bet["outcomes"][0], bet["odds"][0]
-    print(bet1_outcome1)
     row = [
          datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         teams,
@@ -170,20 +161,20 @@ def main():
     sheet = connect_sheet()
 
     bankroll = float(sheet.acell("N2").value.replace(",","."))
-    print(bankroll)
     outcomes, odds, value_team, league, land, true_prob, teams = get_market()
 
     bet = build_bet(bankroll, outcomes, odds, value_team, true_prob)
-    print(bet['hinge'])
+
+    print("\n=== RESULT ===")
+    print("EV:", f"{round(bet['ev'], 4)}%")
+    print("Stakes:", bet["stakes"])
+    print(f"Hinge?: {bet['hinge']}")
+    print(f"Possible profit: {bet['net_profit']}")
 
     if bet["ev"] > 0:
         print("✔ Value bet gevonden!")
         if bet["hinge"]:
             print("Hinge mogelijk ✔")
-
-        print("\n=== RESULT ===")
-        print("EV:", f"{round(bet['ev'], 4)}%")
-        print("Stakes:", bet["stakes"])
 
         confirm = input("Log naar Google Sheets? (Y/N): ")
 
