@@ -1,4 +1,7 @@
-ODDSPAPI_KEY = "bf60d050-de72-4e55-8b05-a0f259c8d4d7" #e383d487-fb8c-43ad-beab-51c45304942c"#bfb812bb-86bd-46dc-b5ad-e53bdf40c775"
+ODDSPAPI_KEY = '0509b78c-8cf1-4f02-903a-b7a0965ee1d0'   
+#"bf60d050-de72-4e55-8b05-a0f259c8d4d7" 
+# #e383d487-fb8c-43ad-beab-51c45304942c"
+# #bfb812bb-86bd-46dc-b5ad-e53bdf40c775"
 
 BELGIAN_BOOKMAKERS = [
     "unibet",

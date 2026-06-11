@@ -133,8 +133,7 @@ def get_available_tournaments(
             continue
     return available
 
-
-BOOKMAKER = "unibet.be"
+BOOKMAKER = "bingoal.be"
 tournaments = get_tournaments()[:20]
 
 print(
@@ -189,4 +188,5 @@ for fixture in fixtures[:10]:
         print(limit)
         print(price)
         print('---------------------------')
+        break
         
