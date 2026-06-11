@@ -21,7 +21,7 @@ def extract_market_odds(fixture):
     data = []
     
     event = api_get('/v4/odds', params)
-    bookmaker_odds = fixture["bookmakerOdds"]
+    bookmaker_odds = event["bookmakerOdds"]
     data_bookie = bookmaker_odds[BOOKMAKER]
     market = data_bookie["markets"]
 
@@ -30,7 +30,7 @@ def extract_market_odds(fixture):
         market_data = outcomes[market_id]["players"]["0"]
         data.append(market_data)
 
-    return event
+    return event, data
 
 def api_get(endpoint, params):
 
@@ -134,7 +134,7 @@ def get_available_tournaments(
     return available
 
 
-BOOKMAKER = "bwin.be"
+BOOKMAKER = "unibet.be"
 tournaments = get_tournaments()[:20]
 
 print(
@@ -167,23 +167,26 @@ print(f"\n{len(fixtures)} wedstrijden gevonden")
 
 for fixture in fixtures[:10]:
 
-    data = extract_market_odds(fixture)
-    name_team_1 = data['participant1Name']
-    name_team_2 = data['participant2Name']
-    sport = data['sportName']
-    statusname = data['statusName']
-    tournament_name = data['tournamentName']
-
-    print(name_team_1)
-    print(name_team_2)
+    event, data = extract_market_odds(fixture)
+    name_team_1 = event['participant1Name']
+    name_team_2 = event['participant2Name']
+    sport = event['sportName']
+    statusname = event['statusName']
+    tournament_name = event['tournamentName']
+    print(f"{name_team_1} - {name_team_2}")
     print(sport)
     print(statusname)
     print(tournament_name)
-    
-    
-    #for odd in data:
-        #print(odd)
-        #betslip_url = odd["betslip"]
-        #last_change = odd["changedAt"]
-        #limit = odd["limit"]
-        #price = odd["price"]
+    print('-----------------------------------------------------------')
+
+    for odd in data:
+        betslip_url = odd["betslip"]
+        last_change = odd["changedAt"]
+        limit = odd["limit"]
+        price = odd["price"]
+        print(betslip_url)
+        print(last_change)
+        print(limit)
+        print(price)
+        print('---------------------------')
+        
