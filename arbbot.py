@@ -26,7 +26,6 @@ def implied_probs(odds_list):
     """Convert odds → normalized true probabilities"""
     hinge = False
     inv = [1 / o for o in odds_list]
-    print(inv)
     total = sum(inv)
     true_probs = [i / total for i in inv]
 
@@ -35,14 +34,16 @@ def implied_probs(odds_list):
 
     return hinge
 
-def hedge_1x2(stake_val, odds, index):
+def hedge(stake_val, odds, index):
     payout = stake_val * odds[index]
     other_odds = [odd for i, odd in enumerate(odds) if i != index]
 
-    print(stake_val)
-    print(payout)
-    print(f"other odds {other_odds}")
-    return payout / other_odds[0], payout / other_odds[1], payout
+    if len(other_odds) > 1:
+        return payout / other_odds[0], payout / other_odds[1], payout
+    
+    else:
+        return payout / other_odds[0], None, payout
+
 
 def calculate_ev_stakes_wkelly(bankroll, odds,
                              index, p, hinge, fraction=0.5):
@@ -67,7 +68,7 @@ def calculate_ev_stakes_wkelly(bankroll, odds,
            
     
     if hinge:
-        stake_x, stake_y, payout = hedge_1x2(stake_value, odds, index)
+        stake_x, stake_y, payout = hedge(stake_value, odds, index)
     
         stakes["stake_x"] = stake_x
         stakes["stake_y"] = stake_y
@@ -120,6 +121,7 @@ def build_bet(bankroll, outcomes, odds, value_team, true_prob_val):
         "stakes": stakes,
         "hinge": False,
         "net_profit": net_profit,
+        "stake_val_bet": stakes["stake_val"],
         "total_stake": total_stakes,
         "outcome_bet": value_team
         }  
@@ -139,10 +141,11 @@ def log_to_sheet(sheet, bet, league, land, teams):
         land,
         league,
         f"{bet['outcomes'][0]} @ {bet['odds'][0]}",
-        f"{bet['outcomes'][1]} @ {bet['odds'][1]}",
-        f"{bet['outcomes'][2]} @ {bet['odds'][2]}",
+        f"{bet['outcomes'][1]} @ {bet['odds'][1]}", 
+        f"{bet['outcomes'][2]} @ {bet['odds'][2]}" if len(bet['outcomes']) == 3 else 0,
         bet["hinge"],
         bet['net_profit'],
+        bet["stake_val_bet"],
         bet['total_stake'],
         bet["outcome_bet"],
         bet["ev"]
@@ -160,7 +163,7 @@ def main():
 
     sheet = connect_sheet()
 
-    bankroll = float(sheet.acell("N2").value.replace(",","."))
+    bankroll = float(sheet.acell("O2").value.replace(",","."))
     outcomes, odds, value_team, league, land, true_prob, teams = get_market()
 
     bet = build_bet(bankroll, outcomes, odds, value_team, true_prob)
