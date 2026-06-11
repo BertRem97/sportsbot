@@ -144,9 +144,9 @@ def log_to_sheet(sheet, bet, league, land, teams):
         f"{bet['outcomes'][1]} @ {bet['odds'][1]}", 
         f"{bet['outcomes'][2]} @ {bet['odds'][2]}" if len(bet['outcomes']) == 3 else 0,
         bet["hinge"],
-        "{:.2f}".format(bet['net_profit']),
-        "{:.2f}".format(bet['stake_val_bet']),
-        "{:.2f}".format(bet['total_stake']),
+        "{:.2f}".format(bet['net_profit']).replace(".", ","),
+        "{:.2f}".format(bet['stake_val_bet']).replace(".", ","),
+        "{:.2f}".format(bet['total_stake']).replace(".", ","),
         bet["outcome_bet"],
         "{:.2f}".format(bet["ev"])
     ]
