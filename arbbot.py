@@ -63,6 +63,7 @@ def calculate_ev_stakes_wkelly(bankroll, odds,
         return 0
     
     stake_value = bankroll * f * fraction
+    payout = stake_value * odds[index]
 
     stakes = {"stake_val": stake_value,
             "stake_x": None,
@@ -75,7 +76,6 @@ def calculate_ev_stakes_wkelly(bankroll, odds,
         stakes["stake_x"] = stake_x
         stakes["stake_y"] = stake_y
 
-    print(stakes)
     return stakes, ev, payout
 
 # ---------------- USER INPUT ----------------
@@ -116,7 +116,7 @@ def build_bet(bankroll, outcomes, odds, value_team, true_prob_val):
                                           idx, true_prob_val, hinge)
     
 
-    total_stakes = (lambda x: sum(x))([i for i in stakes.values()])
+    total_stakes = (lambda x: sum(x))([i for i in stakes.values() if i is not None])
     net_profit = payout - total_stakes
     print(total_stakes)
     data = {
@@ -152,7 +152,9 @@ def log_to_sheet(sheet, bet, league, land, teams):
         f"{bet['outcomes'][2]} @ {bet['odds'][2]}",
         bet["hinge"],
         bet['net_profit'],
-        bet['total_stake']
+        bet['total_stake'],
+        bet["outcome_bet"],
+        bet["ev"]
     ]
        
     next_row = len(sheet.get_all_values()) + 1
@@ -167,7 +169,7 @@ def main():
 
     sheet = connect_sheet()
 
-    bankroll = float(sheet.acell("M2").value.replace(",","."))
+    bankroll = float(sheet.acell("N2").value.replace(",","."))
     print(bankroll)
     outcomes, odds, value_team, league, land, true_prob, teams = get_market()
 
