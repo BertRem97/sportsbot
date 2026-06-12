@@ -148,7 +148,7 @@ def log_to_sheet(sheet, bet, league, land, teams):
         "{:.2f}".format(bet['stake_val_bet']).replace(".", ","),
         "{:.2f}".format(bet['total_stake']).replace(".", ","),
         bet["outcome_bet"],
-        "{:.2f}".format(bet["ev"])
+        "{:.2f}".format(bet["ev"].replace(".", ","))
     ]
        
     next_row = len(sheet.get_all_values()) + 1
