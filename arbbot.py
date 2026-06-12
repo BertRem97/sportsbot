@@ -46,7 +46,7 @@ def hedge(stake_val, odds, index):
 
 
 def calculate_ev_stakes_wkelly(bankroll, odds,
-                             index, p, hinge, fraction=0.5):
+                             index, p, hinge, fraction=0.25):
     
     implied_odds = odds[index]
     p = p / 100

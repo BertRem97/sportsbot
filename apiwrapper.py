@@ -30,6 +30,8 @@ def extract_market_odds(fixture):
         market_data = outcomes[market_id]["players"]["0"]
         data.append(market_data)
 
+    pprint(event)
+    pprint(event.keys())
     return event, data
 
 def api_get(endpoint, params):
@@ -133,7 +135,7 @@ def get_available_tournaments(
             continue
     return available
 
-BOOKMAKER = "bingoal.be"
+BOOKMAKER = "jacks.nl"
 tournaments = get_tournaments()[:20]
 
 print(
