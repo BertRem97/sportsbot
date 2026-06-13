@@ -22,6 +22,16 @@ def connect_sheet():
 
 # ---------------- MATH ----------------
 
+def calculate_hinge_1X2_after(odd_val, stake_val):
+    total_implied_odds = 0.99
+    chance_val = 1 / odd_val
+
+    min_odd_other_p = 1 / (total_implied_odds - chance_val)
+    payout = stake_val * odd_val
+
+    stake_other_p = payout / min_odd_other_p
+    return round(min_odd_other_p, 2), round(stake_other_p, 2)
+
 def implied_probs(odds_list):
     """Convert odds → normalized true probabilities"""
     hinge = False
@@ -105,6 +115,8 @@ def build_bet(bankroll, outcomes, odds, value_team, true_prob_val):
     hinge = implied_probs(odds)
     idx = outcomes.index(value_team)
     bet_placed = outcomes[idx]
+    other_p = [i for i in outcomes if i != value_team]
+
 
     stakes, ev, payout = calculate_ev_stakes_wkelly(bankroll, odds, 
                                           idx, true_prob_val, hinge)
@@ -117,19 +129,29 @@ def build_bet(bankroll, outcomes, odds, value_team, true_prob_val):
         "outcomes": outcomes,
         "odds": odds,
         "ev": ev,
-        "bet_placed":bet_placed,
+        "bet_placed": bet_placed,
         "stakes": stakes,
         "hinge": False,
         "net_profit": net_profit,
         "stake_val_bet": stakes["stake_val"],
         "total_stake": total_stakes,
-        "outcome_bet": value_team
+        "outcome_bet": value_team,
+        "min_odd_other_p": None,
+        "min_stake_other_p": None,
+        "other_p": None
         }  
 
     if hinge:
         data["hinge"] = True
-
-
+    
+    else:
+        if len(outcomes) != 3:
+            min_odds, min_stake = calculate_hinge_1X2_after(odds[idx], stakes['stake_val'])
+            data["min_odd_other_p"] = min_odds
+            data["min_stake_other_p"] = min_stake
+            data["other_p"] = other_p
+            
+            payout_other_p = data["min_stake_other_p"]
     return data
 
 # ---------------- GOOGLE SHEETS LOG ----------------
@@ -144,11 +166,15 @@ def log_to_sheet(sheet, bet, league, land, teams):
         f"{bet['outcomes'][1]} @ {bet['odds'][1]}", 
         f"{bet['outcomes'][2]} @ {bet['odds'][2]}" if len(bet['outcomes']) == 3 else 0,
         bet["hinge"],
-        "{:.2f}".format(bet['net_profit']).replace(".", ","),
+        "{:.2f}".format(bet['net_profit']).replace(".", ",") if bet['hinge'] else 0,
+        "{:.2f}".format(bet['net_profit']).replace(".", ",") if not bet['hinge'] else 0,
         "{:.2f}".format(bet['stake_val_bet']).replace(".", ","),
+        f"{bet['other_p']} @ {bet['min_odd_other_p']} >> {bet['min_stake_other_p']}" 
+        if bet['min_odd_other_p'] else "",
         "{:.2f}".format(bet['total_stake']).replace(".", ","),
-        bet["outcome_bet"],
-        "{:.2f}".format(bet["ev"]).replace(".", ",")
+        bet['bet_placed'],
+        "{:.2f}".format(bet["ev"]).replace(".", ","),
+
     ]
        
     next_row = len(sheet.get_all_values()) + 1
@@ -163,7 +189,7 @@ def main():
 
     sheet = connect_sheet()
 
-    bankroll = float(sheet.acell("O2").value.replace(",","."))
+    bankroll = float(sheet.acell("Q2").value.replace(",","."))
     outcomes, odds, value_team, league, land, true_prob, teams = get_market()
 
     bet = build_bet(bankroll, outcomes, odds, value_team, true_prob)
