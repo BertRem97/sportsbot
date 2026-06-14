@@ -135,7 +135,7 @@ def get_available_tournaments(
             continue
     return available
 
-BOOKMAKER = "jacks.nl"
+BOOKMAKER = "bwin.be"
 tournaments = get_tournaments()[:20]
 
 print(

@@ -179,8 +179,6 @@ def log_to_sheet(sheet, bet, league, land, teams):
        
     next_row = len(sheet.get_all_values()) + 1
     team1, team2 = (lambda x: (x[0].strip().lower(), x[1].strip().lower()))(teams.split(" - ")) 
-    print(team1, team2)
-    print(sheet.col_values(2))
 
     booked_matches = [t.lower() for t in sheet.col_values(2)]
 
