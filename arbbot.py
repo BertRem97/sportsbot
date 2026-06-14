@@ -178,6 +178,15 @@ def log_to_sheet(sheet, bet, league, land, teams):
     ]
        
     next_row = len(sheet.get_all_values()) + 1
+    team1, team2 = (lambda x: (x[0].strip().lower(), x[1].strip().lower()))(teams.split(" - ")) 
+    print(team1, team2)
+    print(sheet.col_values(2))
+
+    booked_matches = [t.lower() for t in sheet.col_values(2)]
+
+    if team1 and team2 in booked_matches:
+        print("Deze weddenschap is al geboekt, voer een andere in")
+
     sheet.update(
         f"A{next_row}:P{next_row}",
         [row])
