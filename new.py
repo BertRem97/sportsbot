@@ -439,7 +439,7 @@ def analyse_market_data(market_map):
 
 if __name__ == "__main__":
 
-
+    percentage_ov = 10
     CURRENT_KEY = 0
     tournaments = get_tournaments()[:20]
 
@@ -478,7 +478,7 @@ if __name__ == "__main__":
     )
 
 
-    for fixture in fixtures[:5]:
+    for fixture in fixtures:
         print(
             "\n",
             fixture["participant1Name"],
@@ -497,5 +497,22 @@ if __name__ == "__main__":
             market_map
         )
 
+        for markets, data in results.items():
+            for outcomes in data:
+                pprint(outcomes)
+                implied_odd = float(1 / outcomes["max_odds"])
+                avg_chance_win = outcomes["avg_chance_win"]
+                bookmaker = outcomes["bookmaker"]
+                betslip = outcomes["betslip"]
+                max_odd = outcomes["max_odds"]
 
-        pprint(results)
+                print(implied_odd, percentage_ov, (avg_chance_win / (1 + percentage_ov / 100)))
+                if (avg_chance_win / (1 / max_odd) - 1) * 100 >= percentage_ov:
+                    print(f"VALUE BET")
+                    print(f"Bookmaker: {bookmaker}")
+                    print(f"Odds: {max_odd}")
+                    print(f"Win chance %: {avg_chance_win * 100}")
+                    print(f"Betslip: {betslip}")
+
+
+
