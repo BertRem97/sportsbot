@@ -211,14 +211,16 @@ for fixture in fixtures[:5]:
                     outcomes[outcome_id].append({"bookmaker": bookie, "price": price, "betslip": betslip})
     
     for outcome_id, prices in outcomes.items():
-    
-        avg = 1 / (
-            sum(x["price"] for x in prices)
-            / len(prices)
-        )
+        
+        bookmaker_found = {x["bookmaker"] for x in prices}
+        if len(bookmaker_found) == len(BOOKMAKERS):
+            avg = 1 / (
+                sum(x["price"] for x in prices)
+                / len(prices)
+            )
 
-        max_odd = max(x["price"] for x in prices if x["bookmaker"] in USED_BOOKMAKERS)
-        outcomes[outcome_id].append({"Average chance win": avg})
-        outcomes[outcome_id].append({"Max odds": max_odd})
+            max_odd = max(x["price"] for x in prices if x["bookmaker"] in USED_BOOKMAKERS)
+            outcomes[outcome_id].append({"Average chance win": avg})
+            outcomes[outcome_id].append({"Max odds": max_odd})
 
-        pprint(outcomes)
+    pprint(outcomes)
