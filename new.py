@@ -21,14 +21,16 @@ BOOKMAKERS = [
     "unibet.be",
     "betano",
     "pinnacle",
-    "stake"
+    "stake",
+    "scooore.be",
 ]
 
 
 USED_BOOKMAKERS = [
     "bwin.be",
     "unibet.be",
-    "betano"
+    "betano",
+    "scooore.be"
 ]
 
 
@@ -499,7 +501,6 @@ if __name__ == "__main__":
 
         for markets, data in results.items():
             for outcomes in data:
-                pprint(outcomes)
                 implied_odd = float(1 / outcomes["max_odds"])
                 avg_chance_win = outcomes["avg_chance_win"]
                 bookmaker = outcomes["bookmaker"]
@@ -513,6 +514,6 @@ if __name__ == "__main__":
                     print(f"Odds: {max_odd}")
                     print(f"Win chance %: {avg_chance_win * 100}")
                     print(f"Betslip: {betslip}")
-
+                    print("--------------------------------------------------")
 
 
