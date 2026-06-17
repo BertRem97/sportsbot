@@ -1,5 +1,5 @@
 import requests
-from config import ODDSPAPI_KEY
+from config import ODDSPAPI_KEYS
 import time
 from pprint import pprint
 from collections import defaultdict
@@ -22,7 +22,7 @@ def compare_bookmakers_for_fixture(fixture):
             "bookmaker": bookie,
             "language": "en",
             "verbosity": 3,
-            "apiKey": ODDSPAPI_KEY
+            "apiKey": ODDSPAPI_KEYS[0]
         }
 
         try:
@@ -51,7 +51,7 @@ def extract_market_odds(fixture):
             "bookmaker": bookie,
             "language": "en",
             "verbosity": 3,
-            "apiKey": ODDSPAPI_KEY
+            "apiKey": ODDSPAPI_KEYS[0]
         }
 
         event = api_get('/v4/odds', params)
@@ -88,7 +88,7 @@ def get_tournaments(sport_id=10):
 
     params = {
         "sportId": sport_id,
-        "apiKey": ODDSPAPI_KEY
+        "apiKey": ODDSPAPI_KEYS[0]
     }
 
     return api_get(
@@ -109,7 +109,7 @@ def get_odds_by_tournaments(
         ),
         "language": "en",
         "verbosity": 3,
-        "apiKey": ODDSPAPI_KEY
+        "apiKey": ODDSPAPI_KEYS[0]
     }
 
     return api_get(

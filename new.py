@@ -2,8 +2,8 @@ import requests
 import time
 from pprint import pprint
 from collections import defaultdict
-
-from config import ODDSPAPI_KEY
+import statistics
+from config import ODDSPAPI_KEYS
 
 
 BASE_URL = "https://api.oddspapi.io"
@@ -32,6 +32,19 @@ USED_BOOKMAKERS = [
 ]
 
 
+def get_next_key():
+
+    global CURRENT_KEY
+
+    key = ODDSPAPI_KEYS[CURRENT_KEY]
+
+    CURRENT_KEY = (
+        CURRENT_KEY + 1
+    ) % len(ODDSPAPI_KEYS)
+
+    return key
+
+
 def get_available_tournaments(
         tournaments,
         bookmaker="unibet.be"
@@ -53,14 +66,13 @@ def get_available_tournaments(
 
         batch = tournament_ids[i:i+5]
 
-
         try:
 
             fixtures = get_odds_by_tournaments(
                 batch,
-                bookmaker
+                bookmaker,
+            
             )
-
 
             found_ids = {
 
@@ -69,8 +81,6 @@ def get_available_tournaments(
                 for fixture in fixtures
 
             }
-
-
 
             for tournament in tournaments:
 
@@ -145,7 +155,7 @@ def get_tournaments(sport_id=10):
     params = {
 
         "sportId": sport_id,
-        "apiKey": ODDSPAPI_KEY
+        "apiKey": get_next_key()
 
     }
 
@@ -160,7 +170,7 @@ def get_tournaments(sport_id=10):
 
 def get_odds_by_tournaments(
         tournament_ids,
-        bookmaker
+        bookmaker,
 ):
 
     # maakt van enkelvoudige ID een lijst
@@ -180,7 +190,7 @@ def get_odds_by_tournaments(
 
         "verbosity": 3,
 
-        "apiKey": ODDSPAPI_KEY
+        "apiKey": get_next_key()
     }
 
 
@@ -198,7 +208,7 @@ def get_odds_by_tournaments(
 
 def get_fixture_odds(
         fixture_id,
-        bookmaker
+        bookmaker,
 ):
 
 
@@ -212,7 +222,7 @@ def get_fixture_odds(
 
         "verbosity": 3,
 
-        "apiKey": ODDSPAPI_KEY
+        "apiKey": get_next_key()
 
     }
 
@@ -232,7 +242,6 @@ def get_fixture_odds(
 
 def compare_bookmakers_for_fixture(fixture):
 
-
     fixture_id = fixture["fixtureId"]
 
 
@@ -244,10 +253,10 @@ def compare_bookmakers_for_fixture(fixture):
 
 
         try:
-
+            
             data = get_fixture_odds(
                 fixture_id,
-                bookmaker
+                bookmaker,
             )
 
 
@@ -260,11 +269,8 @@ def compare_bookmakers_for_fixture(fixture):
 
 
             for market_id, market in markets.items():
-
-
                 market_map[market_id][bookmaker] = market
-
-
+            
 
         except Exception as e:
 
@@ -345,9 +351,6 @@ def analyse_market_data(market_map):
 
             }
 
-
-
-
             # -------------------------
             # TRUE KANS
             # -------------------------
@@ -356,21 +359,10 @@ def analyse_market_data(market_map):
 
                 continue
 
+            probs = [1 / x["price"] for x in prices]
+            median_prob = statistics.median(probs)
 
-
-            avg_odds = sum(
-                x["price"]
-                for x in prices
-
-            ) / len(prices)
-
-
-
-            avg_chance_win = 1 / avg_odds
-
-
-
-
+            avg_chance_win = median_prob
 
             # -------------------------
             # BESTE SPEELBARE ODD
@@ -385,8 +377,6 @@ def analyse_market_data(market_map):
                 in USED_BOOKMAKERS
 
             ]
-
-
 
             playable_books = {
 
@@ -450,7 +440,7 @@ def analyse_market_data(market_map):
 if __name__ == "__main__":
 
 
-
+    CURRENT_KEY = 0
     tournaments = get_tournaments()[:20]
 
     print(
@@ -478,7 +468,7 @@ if __name__ == "__main__":
 
     fixtures = get_odds_by_tournaments(
         tournament_id,
-        BOOKMAKERS[0]
+        BOOKMAKERS[0],
     )
 
 
