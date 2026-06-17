@@ -1,4 +1,4 @@
-ODDSPAPI_KEY = '19249325-1cb5-46a4-8f4f-565c7cf105d5'
+ODDSPAPI_KEY = "7e1cfc03-fa35-4ff6-8aa2-adbf6b77b3d7"
 #"562b7d4b-d2f7-45bf-a3aa-f08829a08f1c"
 #'0509b78c-8cf1-4f02-903a-b7a0965ee1d0'   
 #"bf60d050-de72-4e55-8b05-a0f259c8d4d7" 

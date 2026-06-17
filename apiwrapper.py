@@ -8,6 +8,7 @@ from collections import defaultdict
 BASE_URL = "https://api.oddspapi.io"
 LAST_REQUEST = 0
 
+
 def compare_bookmakers_for_fixture(fixture):
 
     fixture_id = fixture["fixtureId"]
@@ -160,7 +161,8 @@ def get_available_tournaments(
             continue
     return available
 
-BOOKMAKERS =  ["bwin.be", "unibet.be", "betano", "pinnacle", "bc.game"]
+BOOKMAKERS =  ["bwin.be", "unibet.be", "betano", "pinnacle", "stake"]
+USED_BOOKMAKERS = ["bwin.be", "unibet.be", "betano"]
 tournaments = get_tournaments()[:20]
 
 print(
@@ -190,22 +192,33 @@ fixtures = get_odds_by_tournaments(
 
 print(f"\n{len(fixtures)} wedstrijden gevonden")
 
+data = {}
 
 for fixture in fixtures[:5]:
-    print(
-        f"\n{fixture['participant1Name']} - {fixture['participant2Name']}")
+
+    outcomes = defaultdict(list)
+    team1 = fixture['participant1Name']
+    team2 = fixture['participant2Name']
 
     market_map = compare_bookmakers_for_fixture(fixture)
     for market_id, bookmakers in market_map.items():
         if len(list(bookmakers)) == len(BOOKMAKERS):
-            print(f"\nMARKET {market_id}")
             for bookie, market in bookmakers.items():
-                print(f"  {bookie}")
-
                 for outcome_id, outcome in market["outcomes"].items():
                     player = outcome["players"]["0"]
+                    price = player["price"]
+                    betslip = player["betslip"]
+                    outcomes[outcome_id].append({"bookmaker": bookie, "price": price, "betslip": betslip})
+    
+    for outcome_id, prices in outcomes.items():
+    
+        avg = 1 / (
+            sum(x["price"] for x in prices)
+            / len(prices)
+        )
 
-                    print(
-                        f"    outcome={outcome_id}"
-                        f" odds={player['price']}"
-                        f" betslip={player['betslip']}")
+        max_odd = max(x["price"] for x in prices if x["bookmaker"] in USED_BOOKMAKERS)
+        outcomes[outcome_id].append({"Average chance win": avg})
+        outcomes[outcome_id].append({"Max odds": max_odd})
+
+        pprint(outcomes)
