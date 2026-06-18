@@ -1,24 +1,29 @@
-ODDSPAPI_KEYS = ["55ad357a-a327-4bd0-809e-51b7aa86ffe9", "63cf3477-0dc5-4a83-9394-1b6602e6a076", 
-                 "b80de87a-32ef-4ecd-b887-c869fe337d4c", "99a835d6-669d-4beb-85d1-ffc27edf9d04",
-                 "f0b8ea66-a9a4-4d3d-9012-9a7511fbc8ec", "57b652a4-24a8-4a0a-98db-b83fe4db9314", 
-                 "986931e0-b5d4-4f38-9f03-e1b780df0085", "c1427cbe-1197-48eb-87e5-32f07300b6b1"]
+ODDSPAPI_KEYS = ["ecfc3dc8-2fc9-4102-bed6-9c2b6d8a8a46", "436a4d91-9f29-49c7-ae8c-27b58e4ca0a6", 
+                 "a7b8ed7d-56e4-415c-a942-606ca7bb95fb", "8aa4e6bb-f7da-482b-98c1-3085d0ed8c75",
+                 "f0b8ea66-a9a4-4d3d-9012-9a7511fbc8ec", "f04e592c-15d0-4698-9e39-181f3d3888d9", 
+                 "986931e0-b5d4-4f38-9f03-e1b780df0085", "c1427cbe-1197-48eb-87e5-32f07300b6b1", 
+                 "4e64678c-5fe7-4058-bb4f-16b3617cf30d", "563d99ce-c0d3-424e-86e3-5387473b2d44",
+                 "ba0b2282-2433-4d9f-878d-5f1d99e9929a", "e6a29e35-4c16-400c-aa85-abb74b343047"]
 
-#"84cacad0-c567-42d1-9970-8b83e4929367", 
 
-BELGIAN_BOOKMAKERS = [
-    "unibet",
-    "bwin",
-    "ladbrokes",
-    #"betfirst",
-    #"circus",
-    #"jackbit",
-    #"vave",
-    #"betway",
-    "betfirst"
+BOOKMAKERS = [
+    "bwin.be",
+    "unibet.be",
+    "betano",
+    "pinnacle"
 ]
 
+USED_BOOKMAKERS = [
+    "bwin.be",
+    "unibet.be",
+    "betano",
+]
+
+min_percentage_ov = 15
+min_win_chance = 5
+
+SHEET_ID = "1Q2ALPTkGx8SICor1c4cDjZWI5Ewg_OKugvr0yUNY_WQ"
+CREDS_FILE = "credentials.json"
 STARTING_BANKROLL = 1000
-
 EDGE_THRESHOLD = 0.03
-
-KELLY_FRACTION = 0.25
+KELLY_FRACTION = 0.20

@@ -1,7 +1,8 @@
 import gspread
 from google.oauth2.service_account import Credentials
 import datetime
-
+from config import SHEET_ID, CREDS_FILE
+from config import EDGE_THRESHOLD, KELLY_FRACTION
 
 # ---------------- GOOGLE SHEETS ----------------
 
@@ -10,15 +11,11 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-SHEET_ID = "1Q2ALPTkGx8SICor1c4cDjZWI5Ewg_OKugvr0yUNY_WQ"
-CREDS_FILE = "credentials.json"
-
 
 def connect_sheet():
     creds = Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES)
     client = gspread.authorize(creds)
     return client.open_by_key(SHEET_ID).sheet1
-
 
 # ---------------- MATH ----------------
 
@@ -55,10 +52,18 @@ def hedge(stake_val, odds, index):
         return payout / other_odds[0], None, payout
 
 
-def calculate_ev_stakes_wkelly(bankroll, odds,
-                             index, p, hinge, fraction=0.25):
+def calculate_ev_stakes_wkelly(odds=None,
+                             index=None, p=None, hinge=False, odd= None,
+                             fraction=KELLY_FRACTION):
     
-    implied_odds = odds[index]
+    implied_odds = None
+    if odds:
+        implied_odds = odds[index]
+
+    else:
+        if odd:
+            implied_odds = odd
+
     p = p / 100
     b = implied_odds - 1
     q = 1 - p
@@ -70,13 +75,12 @@ def calculate_ev_stakes_wkelly(bankroll, odds,
         return 0
     
     stake_value = bankroll * f * fraction
-    payout = stake_value * odds[index]
+    payout = stake_value * implied_odds if implied_odds is not None else None
 
     stakes = {"stake_val": stake_value,
             "stake_x": None,
             "stake_y": None}
            
-    
     if hinge:
         stake_x, stake_y, payout = hedge(stake_value, odds, index)
     
@@ -111,14 +115,14 @@ def get_market():
 
 # ---------------- STRATEGY ----------------
 
-def build_bet(bankroll, outcomes, odds, value_team, true_prob_val):
+def build_bet(outcomes, odds, value_team, true_prob_val):
     hinge = implied_probs(odds)
     idx = outcomes.index(value_team)
     bet_placed = outcomes[idx]
     other_p = [i for i in outcomes if i != value_team]
 
 
-    stakes, ev, payout = calculate_ev_stakes_wkelly(bankroll, odds, 
+    stakes, ev, payout = calculate_ev_stakes_wkelly(odds, 
                                           idx, true_prob_val, hinge)
     
 
@@ -156,53 +160,67 @@ def build_bet(bankroll, outcomes, odds, value_team, true_prob_val):
 
 # ---------------- GOOGLE SHEETS LOG ----------------
 
-def log_to_sheet(sheet, bet, league, land, teams):
-    row = [
-         datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        teams,
-        land,
-        league,
-        f"{bet['outcomes'][0]} @ {bet['odds'][0]}",
-        f"{bet['outcomes'][1]} @ {bet['odds'][1]}", 
-        f"{bet['outcomes'][2]} @ {bet['odds'][2]}" if len(bet['outcomes']) == 3 else 0,
-        bet["hinge"],
-        "{:.2f}".format(bet['net_profit']).replace(".", ",") if bet['hinge'] else 0,
-        "{:.2f}".format(bet['net_profit']).replace(".", ",") if not bet['hinge'] else 0,
-        "{:.2f}".format(bet['stake_val_bet']).replace(".", ","),
-        f"{bet['other_p']} @ {bet['min_odd_other_p']} >> {bet['min_stake_other_p']}" 
-        if bet['min_odd_other_p'] else "",
-        "{:.2f}".format(bet['total_stake']).replace(".", ","),
-        bet['bet_placed'],
-        "{:.2f}".format(bet["ev"]).replace(".", ","),
+def log_to_sheet(bet=None, league=None, land=None, teams=None, manual_input=False):
 
-    ]
-       
+    if manual_input:
+        row = [
+            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            teams,
+            land,
+            league,
+            f"{bet['outcomes'][0]} @ {bet['odds'][0]}",
+            f"{bet['outcomes'][1]} @ {bet['odds'][1]}", 
+            f"{bet['outcomes'][2]} @ {bet['odds'][2]}" if len(bet['outcomes']) == 3 else "",
+            bet["hinge"],
+            "{:.2f}".format(bet['net_profit']).replace(".", ",") if bet['hinge'] else "",
+            "{:.2f}".format(bet['net_profit']).replace(".", ",") if not bet['hinge'] else "",
+            "{:.2f}".format(bet['stake_val_bet']).replace(".", ","),
+            f"{bet['other_p']} @ {bet['min_odd_other_p']} >> {bet['min_stake_other_p']}" 
+            if bet['min_odd_other_p'] else "",
+            "{:.2f}".format(bet['total_stake']).replace(".", ","),
+            bet['bet_placed'],
+            "{:.2f}".format(bet["ev"]).replace(".", ","),
+        ]
+
+    elif not manual_input:
+        row = [
+            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            bet["teamnames"],
+            bet["land"],
+            bet["league"],
+            bet["odd"],
+            "",
+            "",
+            False,
+            "",
+            bet["net_profit"],
+            bet["stake_val"],
+            "",
+            bet["stake_val"],
+            "",
+            bet["ev"],
+            bet["fixture_id"],
+            bet["market_id"],
+            bet["betslip"]
+
+        ]
+   
     next_row = len(sheet.get_all_values()) + 1
-    team1, team2 = (lambda x: (x[0].strip().lower(), x[1].strip().lower()))(teams.split(" - ")) 
-
-    booked_matches = [t.lower() for t in sheet.col_values(2)]
-
-    if team1 and team2 in booked_matches:
-        print("Deze weddenschap is al geboekt, voer een andere in")
-
     sheet.update(
-        f"A{next_row}:P{next_row}",
+        f"A{next_row}:S{next_row}",
         [row])
 
 
+sheet = connect_sheet()
+bankroll = float(sheet.acell("T2").value.replace(",","."))
 # ---------------- MAIN ----------------
 
 def main():
-
-    sheet = connect_sheet()
-
-    bankroll = float(sheet.acell("Q2").value.replace(",","."))
     outcomes, odds, value_team, league, land, true_prob, teams = get_market()
-
-    bet = build_bet(bankroll, outcomes, odds, value_team, true_prob)
+    bet = build_bet(outcomes, odds, value_team, true_prob)
 
     print("\n=== RESULT ===")
-    print("EV:", f"{round(bet['ev'], 4)}%")
+    print("EV:", f"{round(bet['ev'], 2)}%")
     print("Stakes:", bet["stakes"])
     print(f"Hinge?: {bet['hinge']}")
     print(f"Possible profit: {bet['net_profit']}")
@@ -215,7 +233,7 @@ def main():
         confirm = input("Log naar Google Sheets? (Y/N): ")
 
         if confirm.lower() == "y":
-            log_to_sheet(sheet, bet, league, land, teams)
+            log_to_sheet(bet, league, land, teams, True)
             print("✔ Opgeslagen in Google Sheets")
 
     else:

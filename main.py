@@ -4,35 +4,17 @@ from pprint import pprint
 from collections import defaultdict
 import statistics
 from config import ODDSPAPI_KEYS
+from config import BOOKMAKERS, USED_BOOKMAKERS
+from config import min_win_chance, min_percentage_ov
+from logger import * 
 
 
 BASE_URL = "https://api.oddspapi.io"
-
 LAST_REQUEST = 0
-
-
 
 # -----------------------------
 # CONFIG
 # -----------------------------
-
-BOOKMAKERS = [
-    "bwin.be",
-    "unibet.be",
-    "betano",
-    "pinnacle",
-    "stake",
-    "scooore.be",
-]
-
-
-USED_BOOKMAKERS = [
-    "bwin.be",
-    "unibet.be",
-    "betano",
-    "scooore.be"
-]
-
 
 def get_next_key():
 
@@ -57,19 +39,14 @@ def get_available_tournaments(
 
     tournament_ids = [
         t["tournamentId"]
-        for t in tournaments
-    ]
+        for t in tournaments]
 
-
-    # API rate limit vermijden
-    # batches van 5
 
     for i in range(0, len(tournament_ids), 5):
 
         batch = tournament_ids[i:i+5]
 
         try:
-
             fixtures = get_odds_by_tournaments(
                 batch,
                 bookmaker,
@@ -79,36 +56,23 @@ def get_available_tournaments(
             found_ids = {
 
                 fixture["tournamentId"]
-
-                for fixture in fixtures
-
-            }
+                
+                for fixture in fixtures}
 
             for tournament in tournaments:
 
-
                 if tournament["tournamentId"] in found_ids:
-
                     available.append(
                         tournament
                     )
 
-
-
         except requests.exceptions.HTTPError:
 
-
-            print(
-                f"Batch {batch} overgeslagen"
-            )
-
-
+            print(f"Batch {batch} overgeslagen")
             continue
 
 
-
     return available
-
 
 # -----------------------------
 # API
@@ -120,39 +84,28 @@ def api_get(endpoint, params):
 
     elapsed = time.time() - LAST_REQUEST
 
-
     if elapsed < 1:
         time.sleep(1 - elapsed)
-
-
 
     response = requests.get(
         BASE_URL + endpoint,
         params=params
     )
 
-
     LAST_REQUEST = time.time()
-
-
 
     if response.status_code != 200:
         print(response.text)
 
-
     response.raise_for_status()
 
     return response.json()
-
-
-
 
 # -----------------------------
 # TOURNAMENTS
 # -----------------------------
 
 def get_tournaments(sport_id=10):
-
 
     params = {
 
@@ -161,13 +114,10 @@ def get_tournaments(sport_id=10):
 
     }
 
-
     return api_get(
         "/v4/tournaments",
         params
     )
-
-
 
 
 def get_odds_by_tournaments(
@@ -178,7 +128,6 @@ def get_odds_by_tournaments(
     # maakt van enkelvoudige ID een lijst
     if isinstance(tournament_ids, int):
         tournament_ids = [tournament_ids]
-
 
     params = {
 
@@ -195,13 +144,10 @@ def get_odds_by_tournaments(
         "apiKey": get_next_key()
     }
 
-
     return api_get(
         "/v4/odds-by-tournaments",
         params
     )
-
-
 
 
 # -----------------------------
@@ -212,7 +158,6 @@ def get_fixture_odds(
         fixture_id,
         bookmaker,
 ):
-
 
     params = {
 
@@ -234,10 +179,6 @@ def get_fixture_odds(
         params
     )
 
-
-
-
-
 # -----------------------------
 # MARKET VERGELIJKING
 # -----------------------------
@@ -249,18 +190,13 @@ def compare_bookmakers_for_fixture(fixture):
 
     market_map = defaultdict(dict)
 
-
-
     for bookmaker in BOOKMAKERS:
-
-
         try:
             
             data = get_fixture_odds(
                 fixture_id,
                 bookmaker,
             )
-
 
             markets = (
                 data["bookmakerOdds"]
@@ -269,23 +205,13 @@ def compare_bookmakers_for_fixture(fixture):
             )
 
 
-
             for market_id, market in markets.items():
                 market_map[market_id][bookmaker] = market
             
-
         except Exception as e:
-
-            print(
-                bookmaker,
-                e
-            )
-
+            print(bookmaker, e)
 
     return market_map
-
-
-
 
 
 # -----------------------------
@@ -294,39 +220,20 @@ def compare_bookmakers_for_fixture(fixture):
 
 def analyse_market_data(market_map):
 
-
     results = defaultdict(list)
-
-
-
     for market_id, bookmakers in market_map.items():
 
-
-
         # market moet bij alle bookmakers bestaan
-
         if set(bookmakers.keys()) != set(BOOKMAKERS):
 
             continue
 
-
-
-
         outcome_prices = defaultdict(list)
 
-
-
         # odds verzamelen per outcome
-
         for bookmaker, market in bookmakers.items():
-
-
             for outcome_id, outcome in market["outcomes"].items():
-
-
                 player = outcome["players"]["0"]
-
-
 
                 outcome_prices[outcome_id].append({
 
@@ -339,13 +246,8 @@ def analyse_market_data(market_map):
                 })
 
 
-
-
         # elke outcome controleren
-
         for outcome_id, prices in outcome_prices.items():
-
-
             available_books = {
 
                 x["bookmaker"]
@@ -387,25 +289,15 @@ def analyse_market_data(market_map):
 
             }
 
-
-
-
             # enkel als alle speelbookies bestaan
-
             if playable_books != set(USED_BOOKMAKERS):
-
                 continue
-
-
 
 
             best = max(
                 playable,
                 key=lambda x:x["price"]
             )
-
-
-
 
 
             results[market_id].append({
@@ -427,11 +319,7 @@ def analyse_market_data(market_map):
             })
 
 
-
     return results
-
-
-
 
 
 # -----------------------------
@@ -441,7 +329,6 @@ def analyse_market_data(market_map):
 
 if __name__ == "__main__":
 
-    percentage_ov = 10
     CURRENT_KEY = 0
     tournaments = get_tournaments()[:20]
 
@@ -481,13 +368,18 @@ if __name__ == "__main__":
 
 
     for fixture in fixtures:
+        teamnames = f"{fixture['participant1Name']} - {fixture['participant2Name']}"
+        league = fixture["statusName"]
+        tournament = fixture["tournamentSlug"]
+        land = fixture["categoryName"]
+        fixtureid = fixture["fixtureId"]
+
         print(
             "\n",
             fixture["participant1Name"],
             "-",
             fixture["participant2Name"]
         )
-
 
 
         market_map = compare_bookmakers_for_fixture(
@@ -499,21 +391,78 @@ if __name__ == "__main__":
             market_map
         )
 
+
         for markets, data in results.items():
             for outcomes in data:
                 implied_odd = float(1 / outcomes["max_odds"])
                 avg_chance_win = outcomes["avg_chance_win"]
                 bookmaker = outcomes["bookmaker"]
-                betslip = outcomes["betslip"]
+                betslip = outcomes["all_prices"][0]["betslip"]
                 max_odd = outcomes["max_odds"]
+                win_chance = avg_chance_win * 100
 
-                print(implied_odd, percentage_ov, (avg_chance_win / (1 + percentage_ov / 100)))
-                if (avg_chance_win / (1 / max_odd) - 1) * 100 >= percentage_ov:
-                    print(f"VALUE BET")
-                    print(f"Bookmaker: {bookmaker}")
-                    print(f"Odds: {max_odd}")
-                    print(f"Win chance %: {avg_chance_win * 100}")
-                    print(f"Betslip: {betslip}")
-                    print("--------------------------------------------------")
+                if (avg_chance_win / (1 / max_odd) - 1) * 100 >= min_percentage_ov:
+                    ov = float(max_odd / (1 / avg_chance_win) - 1) * 100
+                    if win_chance >= min_win_chance:
+                        stakes, ev, payout = calculate_ev_stakes_wkelly(odd=max_odd, p=win_chance)
+                        stake_bet = round(stakes['stake_val'], 2)
+                        payout = round(payout, 2)
+                        net_profit = payout - stake_bet
+
+                        ev = round(ev, 2)
+                        if ev > 0:
+                            print(f"========VALUE BET=========")
+                            print("EV:", f"{round(ev, 2)}%")
+                            print("Stake:", stake_bet)
+                            print(f"Possible profit: {payout}")
+                            print(f"Betslip: {betslip}")
+                            print(f"Bookmaker: {bookmaker}")
+                            print(f"Odd: {max_odd}")
+                            print(f"Waarschijnlijkheid %: {win_chance:.2f}")
+                            print(f"Overwaarde %: {ov:.2f}")
+                            print(f"Betslip: {betslip}")
+
+                            bet = {
+                                "odd": max_odd,
+                                "ev": ev,
+                                "market_id": markets,
+                                "stake_val": stake_bet,
+                                "hinge": False,
+                                "net_profit": net_profit,
+                                "stake_val_bet": stakes["stake_val"],
+                                "total_stake": stakes["stake_val"],
+                                "min_odd_other_p": None,
+                                "min_stake_other_p": None,
+                                "other_p": None,
+                                "teamnames": teamnames,
+                                "fixture_id": fixtureid,
+                                "land": land,
+                                "tournament": tournament,
+                                "league": league,
+                                "betslip": betslip
+                                } 
+                            
+                            print('-------------------------')
+                            print(bet)
+                            print(outcomes)
+                            
+                            confirm = input("Log naar Google Sheets? (Y/N): ")
+                            if confirm.lower() == "y":
+                                log_to_sheet(bet=bet)
+                                print("✔ Opgeslagen in Google Sheets")
+
+                            elif confirm.lower() == "n":
+                                continue
+
+                        else:
+                            print("✖ Geen value bet")
+
+                        
+       
+                        
+
+
+                       
+
 
 
