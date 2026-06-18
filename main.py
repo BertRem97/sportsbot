@@ -5,9 +5,12 @@ from collections import defaultdict
 import statistics
 from config import ODDSPAPI_KEYS
 from config import BOOKMAKERS, USED_BOOKMAKERS
+from config import TELEGRAM_TOKEN, CHAT_ID
 from config import min_win_chance, min_percentage_ov
 from logger import * 
-
+from telegram import InlineKeyboardButton, Bot
+from telegram import InlineKeyboardMarkup
+from telegram.ext import CallbackQueryHandler
 
 BASE_URL = "https://api.oddspapi.io"
 LAST_REQUEST = 0
@@ -322,14 +325,36 @@ def analyse_market_data(market_map):
     return results
 
 
+def handle_button(update, context):
+
+    global decision
+
+    query = update.callback_query
+
+    query.answer()
+
+    if query.data == "bet_yes":
+
+        decision = True
+
+        query.edit_message_text(
+            "✅ Bet bevestigd"
+        )
+
+    elif query.data == "bet_no":
+
+        decision = False
+
+        query.edit_message_text(
+            "❌ Bet geweigerd"
+        )
+
 # -----------------------------
 # MAIN
 # -----------------------------
-
-
-if __name__ == "__main__":
-
-    CURRENT_KEY = 0
+bot = Bot(token=TELEGRAM_TOKEN)
+CURRENT_KEY = 0
+async def main():
     tournaments = get_tournaments()[:20]
 
     print(
@@ -411,16 +436,22 @@ if __name__ == "__main__":
 
                         ev = round(ev, 2)
                         if ev > 0:
-                            print(f"========VALUE BET=========")
-                            print("EV:", f"{round(ev, 2)}%")
-                            print("Stake:", stake_bet)
-                            print(f"Possible profit: {payout}")
-                            print(f"Betslip: {betslip}")
-                            print(f"Bookmaker: {bookmaker}")
-                            print(f"Odd: {max_odd}")
-                            print(f"Waarschijnlijkheid %: {win_chance:.2f}")
-                            print(f"Overwaarde %: {ov:.2f}")
-                            print(f"Betslip: {betslip}")
+                            msg = f"""========VALUE BET=========
+{teamnames}
+League: {league}
+Tournament: {tournament}
+EV: {ev}%
+Stake: {stake_bet}
+Possible Profit: €{payout}
+Bookmaker: {bookmaker}
+Quotering: {max_odd}
+Waarschijnlijkheid: {win_chance:.2f}%
+Overwaarde: {ov:.2f}%
+Betslip: {betslip}
+
+Deze bet loggen?
+"""
+                            print(msg)
 
                             bet = {
                                 "odd": max_odd,
@@ -446,17 +477,48 @@ if __name__ == "__main__":
                             print(bet)
                             print(outcomes)
                             
-                            confirm = input("Log naar Google Sheets? (Y/N): ")
-                            if confirm.lower() == "y":
+                            
+                            keyboard = [
+                                [
+                                    InlineKeyboardButton(
+                                        "✅ Ja",
+                                        callback_data=f"bet_yes"
+                                    ),
+                                    InlineKeyboardButton(
+                                        "❌ Nee",
+                                        callback_data=f"bet_no"
+                                    )
+                                ]
+                            ]
+
+                            reply_markup = InlineKeyboardMarkup(keyboard)
+
+                            await bot.send_message(
+                                chat_id=CHAT_ID,
+                                text=msg,
+                                reply_markup=reply_markup
+                            )
+                            decision = None
+
+                            while decision is None:
+                                time.sleep(1)
+
+                            if decision:
                                 log_to_sheet(bet=bet)
                                 print("✔ Opgeslagen in Google Sheets")
-
-                            elif confirm.lower() == "n":
+                            
+                            else:
                                 continue
 
-                        else:
-                            print("✖ Geen value bet")
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
+    
 
+    
+    
+
+                      
                         
        
                         
