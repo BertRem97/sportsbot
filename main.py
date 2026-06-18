@@ -11,6 +11,14 @@ from logger import *
 from telegram import InlineKeyboardButton, Bot
 from telegram import InlineKeyboardMarkup
 from telegram.ext import CallbackQueryHandler
+from telegram.ext import (
+    Application,
+    CallbackQueryHandler
+)
+import asyncio
+
+decision = None
+decision_event = asyncio.Event()
 
 BASE_URL = "https://api.oddspapi.io"
 LAST_REQUEST = 0
@@ -349,10 +357,14 @@ def handle_button(update, context):
             "❌ Bet geweigerd"
         )
 
+    decision_event.set()
+
 # -----------------------------
 # MAIN
 # -----------------------------
 bot = Bot(token=TELEGRAM_TOKEN)
+application = (Application.builder().token(TELEGRAM_TOKEN).build())
+
 CURRENT_KEY = 0
 async def main():
     tournaments = get_tournaments()[:20]
@@ -441,7 +453,7 @@ async def main():
 League: {league}
 Tournament: {tournament}
 EV: {ev}%
-Stake: {stake_bet}
+Stake: €{stake_bet}
 Possible Profit: €{payout}
 Bookmaker: {bookmaker}
 Quotering: {max_odd}
@@ -474,9 +486,7 @@ Deze bet loggen?
                                 } 
                             
                             print('-------------------------')
-                            print(bet)
                             print(outcomes)
-                            
                             
                             keyboard = [
                                 [
@@ -493,16 +503,20 @@ Deze bet loggen?
 
                             reply_markup = InlineKeyboardMarkup(keyboard)
 
+                            global decision
+
+                            decision = None
+                            decision_event.clear()
+
+
                             await bot.send_message(
                                 chat_id=CHAT_ID,
                                 text=msg,
                                 reply_markup=reply_markup
                             )
-                            decision = None
 
-                            while decision is None:
-                                time.sleep(1)
 
+                            await decision_event.wait()
                             if decision:
                                 log_to_sheet(bet=bet)
                                 print("✔ Opgeslagen in Google Sheets")
@@ -510,9 +524,35 @@ Deze bet loggen?
                             else:
                                 continue
 
+async def run():
+
+    application = (
+        Application.builder()
+        .token(TELEGRAM_TOKEN)
+        .build()
+    )
+
+
+    application.add_handler(
+        CallbackQueryHandler(
+            handle_button
+        )
+    )
+
+
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling()
+
+    await main()
+
+    await application.updater.stop()
+    await application.stop()
+    await application.shutdown()
+
+
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    asyncio.run(run())
     
 
     
