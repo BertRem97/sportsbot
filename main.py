@@ -16,6 +16,7 @@ from telegram.ext import (
     CallbackQueryHandler
 )
 import asyncio
+import re
 
 decision = None
 decision_event = asyncio.Event()
@@ -39,6 +40,16 @@ def get_next_key():
 
     return key
 
+def set_settlements(fixtureid, market_id):
+    params = {
+        "fixtureId": fixtureid,
+        "apiKey": get_next_key()
+    }
+
+    return api_get(
+        "/v4/settlements",
+        params
+    ), market_id
 
 def get_available_tournaments(
         tournaments,
@@ -367,6 +378,36 @@ application = (Application.builder().token(TELEGRAM_TOKEN).build())
 
 CURRENT_KEY = 0
 async def main():
+
+    rows = sheet.get_all_values()
+    pairs = []
+
+    fixture_pattern = r"^id\d+$"
+    market_pattern = r"^\d+$"
+
+    for row in rows:
+
+        if len(row) < 2:
+            continue
+
+        event_fixture = row[0].strip()
+        market_fixture = row[1].strip()
+
+        if (
+            re.match(fixture_pattern, event_fixture)
+            and
+            re.match(market_pattern, market_fixture)
+        ):
+            pairs.append(
+                (
+                    event_fixture,
+                    market_fixture
+                )
+            )
+    print(pairs)
+
+   
+    
     tournaments = get_tournaments()[:20]
 
     print(
@@ -389,7 +430,6 @@ async def main():
     tournament_id = int(
         input("\nGeef tournament ID: ")
         )
-
 
 
     fixtures = get_odds_by_tournaments(
