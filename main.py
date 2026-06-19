@@ -40,16 +40,16 @@ def get_next_key():
 
     return key
 
-def set_settlements(fixtureid, market_id):
+def get_settlements(fixtureid):
     params = {
         "fixtureId": fixtureid,
         "apiKey": get_next_key()
     }
-
+    
     return api_get(
         "/v4/settlements",
         params
-    ), market_id
+    )
 
 def get_available_tournaments(
         tournaments,
@@ -384,13 +384,13 @@ async def main():
     fixture_pattern = r"^id\d+$"
     market_pattern = r"^\d+$"
 
-    for row in rows:
+    for row_index, row in enumerate(rows, start=1):
 
         if len(row) < 2:
             continue
 
-        event_fixture = row[0].strip()
-        market_fixture = row[1].strip()
+        event_fixture = row[15].strip()
+        market_fixture = row[16].strip()
 
         if (
             re.match(fixture_pattern, event_fixture)
@@ -400,12 +400,29 @@ async def main():
             pairs.append(
                 (
                     event_fixture,
-                    market_fixture
+                    market_fixture,
+                    row_index
                 )
             )
-    print(pairs)
 
-   
+    for event_fixture, market_fixture, row_idx in pairs:
+  
+        settlements = get_settlements(fixtureid=event_fixture)
+        result = settlements["markets"][market_fixture]["outcomes"][market_fixture]['players']["0"]["result"]
+    
+        settlement_col = 19
+        if result == "WIN":
+            value = "Ja"
+
+        elif result == "LOSE":
+            value = "Nee"
+
+        elif result == "UNDECIDED":
+            value = "Onbepaald"
+
+        sheet.update_cell(row_idx, settlement_col, value)
+
+
     tournaments = get_tournaments()[:20]
 
     print(
