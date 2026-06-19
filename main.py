@@ -378,7 +378,6 @@ application = (Application.builder().token(TELEGRAM_TOKEN).build())
 
 CURRENT_KEY = 0
 async def main():
-
     rows = sheet.get_all_values()
     pairs = []
 
@@ -407,7 +406,7 @@ async def main():
     print(pairs)
 
    
-    tournaments = get_tournaments()[:50]
+    tournaments = get_tournaments()[:20]
 
     print(
         f"{len(tournaments)} competities gevonden"
