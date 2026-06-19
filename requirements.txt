@@ -3,3 +3,4 @@ pandas
 gspread
 requests
 telegram
+python-telegram-bot
