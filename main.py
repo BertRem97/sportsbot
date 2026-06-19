@@ -407,7 +407,7 @@ async def main():
     print(pairs)
 
    
-    tournaments = get_tournaments()[:]
+    tournaments = get_tournaments()[:20]
 
     print(
         f"{len(tournaments)} competities gevonden"
