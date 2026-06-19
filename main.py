@@ -407,7 +407,7 @@ async def main():
     print(pairs)
 
    
-    tournaments = get_tournaments()[:20]
+    tournaments = get_tournaments()[:50]
 
     print(
         f"{len(tournaments)} competities gevonden"
@@ -426,68 +426,66 @@ async def main():
             "-",t["tournamentName"]
         )
 
-    tournament_id = int(
-        input("\nGeef tournament ID: ")
+        tournament_id = t["tournamentId"]
+
+
+        fixtures = get_odds_by_tournaments(
+            tournament_id,
+            BOOKMAKERS[0],
         )
 
-
-    fixtures = get_odds_by_tournaments(
-        tournament_id,
-        BOOKMAKERS[0],
-    )
-
-
-    print(
-        "Aantal wedstrijden:",
-        len(fixtures)
-    )
-
-
-    for fixture in fixtures:
-        teamnames = f"{fixture['participant1Name']} - {fixture['participant2Name']}"
-        league = fixture["statusName"]
-        tournament = fixture["tournamentSlug"]
-        land = fixture["categoryName"]
-        fixtureid = fixture["fixtureId"]
 
         print(
-            "\n",
-            fixture["participant1Name"],
-            "-",
-            fixture["participant2Name"]
+            "Aantal wedstrijden:",
+            len(fixtures)
         )
 
 
-        market_map = compare_bookmakers_for_fixture(
-            fixture
-        )
+        for fixture in fixtures:
+            teamnames = f"{fixture['participant1Name']} - {fixture['participant2Name']}"
+            league = fixture["statusName"]
+            tournament = fixture["tournamentSlug"]
+            land = fixture["categoryName"]
+            fixtureid = fixture["fixtureId"]
+
+            print(
+                "\n",
+                fixture["participant1Name"],
+                "-",
+                fixture["participant2Name"]
+            )
 
 
-        results = analyse_market_data(
-            market_map
-        )
+            market_map = compare_bookmakers_for_fixture(
+                fixture
+            )
 
 
-        for markets, data in results.items():
-            for outcomes in data:
-                implied_odd = float(1 / outcomes["max_odds"])
-                avg_chance_win = outcomes["avg_chance_win"]
-                bookmaker = outcomes["bookmaker"]
-                betslip = outcomes["all_prices"][0]["betslip"]
-                max_odd = outcomes["max_odds"]
-                win_chance = avg_chance_win * 100
+            results = analyse_market_data(
+                market_map
+            )
 
-                if (avg_chance_win / (1 / max_odd) - 1) * 100 >= min_percentage_ov:
-                    ov = float(max_odd / (1 / avg_chance_win) - 1) * 100
-                    if win_chance >= min_win_chance:
-                        stakes, ev, payout = calculate_ev_stakes_wkelly(odd=max_odd, p=win_chance)
-                        stake_bet = round(stakes['stake_val'], 2)
-                        payout = round(payout, 2)
-                        net_profit = payout - stake_bet
 
-                        ev = round(ev, 2)
-                        if ev > 0:
-                            msg = f"""========VALUE BET=========
+            for markets, data in results.items():
+                for outcomes in data:
+                    implied_odd = float(1 / outcomes["max_odds"])
+                    avg_chance_win = outcomes["avg_chance_win"]
+                    bookmaker = outcomes["bookmaker"]
+                    betslip = outcomes["all_prices"][0]["betslip"]
+                    max_odd = outcomes["max_odds"]
+                    win_chance = avg_chance_win * 100
+
+                    if (avg_chance_win / (1 / max_odd) - 1) * 100 >= min_percentage_ov:
+                        ov = float(max_odd / (1 / avg_chance_win) - 1) * 100
+                        if win_chance >= min_win_chance:
+                            stakes, ev, payout = calculate_ev_stakes_wkelly(odd=max_odd, p=win_chance)
+                            stake_bet = round(stakes['stake_val'], 2)
+                            payout = round(payout, 2)
+                            net_profit = payout - stake_bet
+
+                            ev = round(ev, 2)
+                            if ev > 0:
+                                msg = f"""========VALUE BET=========
 {teamnames}
 League: {league}
 Tournament: {tournament}
@@ -502,66 +500,66 @@ Betslip: {betslip}
 
 Deze bet loggen?
 """
-                            print(msg)
+                                print(msg)
 
-                            bet = {
-                                "odd": max_odd,
-                                "ev": ev,
-                                "market_id": markets,
-                                "stake_val": stake_bet,
-                                "hinge": False,
-                                "net_profit": net_profit,
-                                "stake_val_bet": stakes["stake_val"],
-                                "total_stake": stakes["stake_val"],
-                                "min_odd_other_p": None,
-                                "min_stake_other_p": None,
-                                "other_p": None,
-                                "teamnames": teamnames,
-                                "fixture_id": fixtureid,
-                                "land": land,
-                                "tournament": tournament,
-                                "league": league,
-                                "betslip": betslip
-                                } 
-                            
-                            print('-------------------------')
-                            print(outcomes)
-                            
-                            keyboard = [
-                                [
-                                    InlineKeyboardButton(
-                                        "✅ Ja",
-                                        callback_data=f"bet_yes"
-                                    ),
-                                    InlineKeyboardButton(
-                                        "❌ Nee",
-                                        callback_data=f"bet_no"
-                                    )
+                                bet = {
+                                    "odd": max_odd,
+                                    "ev": ev,
+                                    "market_id": markets,
+                                    "stake_val": stake_bet,
+                                    "hinge": False,
+                                    "net_profit": net_profit,
+                                    "stake_val_bet": stakes["stake_val"],
+                                    "total_stake": stakes["stake_val"],
+                                    "min_odd_other_p": None,
+                                    "min_stake_other_p": None,
+                                    "other_p": None,
+                                    "teamnames": teamnames,
+                                    "fixture_id": fixtureid,
+                                    "land": land,
+                                    "tournament": tournament,
+                                    "league": league,
+                                    "betslip": betslip
+                                    } 
+                                
+                                print('-------------------------')
+                                print(outcomes)
+                                
+                                keyboard = [
+                                    [
+                                        InlineKeyboardButton(
+                                            "✅ Ja",
+                                            callback_data=f"bet_yes"
+                                        ),
+                                        InlineKeyboardButton(
+                                            "❌ Nee",
+                                            callback_data=f"bet_no"
+                                        )
+                                    ]
                                 ]
-                            ]
 
-                            reply_markup = InlineKeyboardMarkup(keyboard)
+                                reply_markup = InlineKeyboardMarkup(keyboard)
 
-                            global decision
+                                global decision
 
-                            decision = None
-                            decision_event.clear()
-
-
-                            await bot.send_message(
-                                chat_id=CHAT_ID,
-                                text=msg,
-                                reply_markup=reply_markup
-                            )
+                                decision = None
+                                decision_event.clear()
 
 
-                            await decision_event.wait()
-                            if decision:
-                                log_to_sheet(bet=bet)
-                                print("✔ Opgeslagen in Google Sheets")
-                            
-                            else:
-                                continue
+                                await bot.send_message(
+                                    chat_id=CHAT_ID,
+                                    text=msg,
+                                    reply_markup=reply_markup
+                                )
+
+
+                                await decision_event.wait()
+                                if decision:
+                                    log_to_sheet(bet=bet)
+                                    print("✔ Opgeslagen in Google Sheets")
+                                
+                                else:
+                                    continue
 
 async def run():
 
