@@ -17,6 +17,7 @@ from telegram.ext import (
 )
 import asyncio
 import re
+import subprocess
 
 decision = None
 decision_event = asyncio.Event()
@@ -28,6 +29,38 @@ LAST_REQUEST = 0
 # CONFIG
 # -----------------------------
 
+def rotate_ip():
+
+    print("VPN IP roteren...")
+    subprocess.run(
+        ["bash", "/home/pi/services/sportsbot/rotate_vpn_on_call.sh"],
+        check=True
+    )
+
+    print("Wachten op verbinding...")
+
+    while True:
+
+        try:
+
+            response = requests.get(
+                BASE_URL,
+                timeout=5
+            )
+
+            # server antwoordt = internet terug
+            if response.status_code < 500:
+
+                print("Verbinding hersteld!")
+                return True
+
+        except requests.exceptions.RequestException:
+
+            pass
+
+        time.sleep(2)
+
+    
 def get_next_key():
 
     global CURRENT_KEY
@@ -43,7 +76,6 @@ def get_next_key():
 def get_settlements(fixtureid):
     params = {
         "fixtureId": fixtureid,
-        "apiKey": get_next_key()
     }
     
     return api_get(
@@ -103,21 +135,32 @@ def get_available_tournaments(
 def api_get(endpoint, params):
 
     global LAST_REQUEST
-
     elapsed = time.time() - LAST_REQUEST
 
     if elapsed < 1:
         time.sleep(1 - elapsed)
+
+    params["apiKey"] = get_next_key()
 
     response = requests.get(
         BASE_URL + endpoint,
         params=params
     )
 
+
     LAST_REQUEST = time.time()
 
-    if response.status_code != 200:
-        print(response.text)
+    if response.status_code == 403:
+
+        print("403 ontvangen -> IP rotatie")
+
+        if rotate_ip():
+            # opnieuw proberen met nieuwe IP
+            response = requests.get(
+                BASE_URL + endpoint,
+                params=params
+            )
+            print(response)
 
     response.raise_for_status()
 
@@ -130,10 +173,7 @@ def api_get(endpoint, params):
 def get_tournaments(sport_id=10):
 
     params = {
-
         "sportId": sport_id,
-        "apiKey": get_next_key()
-
     }
 
     return api_get(
@@ -146,7 +186,7 @@ def get_odds_by_tournaments(
         tournament_ids,
         bookmaker,
 ):
-
+    
     # maakt van enkelvoudige ID een lijst
     if isinstance(tournament_ids, int):
         tournament_ids = [tournament_ids]
@@ -163,7 +203,6 @@ def get_odds_by_tournaments(
 
         "verbosity": 3,
 
-        "apiKey": get_next_key()
     }
 
     return api_get(
@@ -176,11 +215,14 @@ def get_odds_by_tournaments(
 # FIXTURE ODDS
 # -----------------------------
 
-def get_fixture_odds(
-        fixture_id,
-        bookmaker,
-):
+ODDS_CACHE = {}
+def get_fixture_odds(fixture_id,bookmaker):
+    
+    key = (fixture_id, bookmaker)
 
+    if key in ODDS_CACHE:
+        return ODDS_CACHE[key]
+        
     params = {
 
         "fixtureId": fixture_id,
@@ -190,16 +232,15 @@ def get_fixture_odds(
         "language": "en",
 
         "verbosity": 3,
-
-        "apiKey": get_next_key()
-
     }
-
-
-    return api_get(
+    
+    data = api_get(
         "/v4/odds",
-        params
-    )
+        params)
+    
+    ODDS_CACHE[key] = data
+
+    return data
 
 # -----------------------------
 # MARKET VERGELIJKING
@@ -344,19 +385,19 @@ def analyse_market_data(market_map):
     return results
 
 
-def handle_button(update, context):
+async def handle_button(update, context):
 
     global decision
 
     query = update.callback_query
 
-    query.answer()
+    await query.answer()
 
     if query.data == "bet_yes":
 
         decision = True
 
-        query.edit_message_text(
+        await query.edit_message_text(
             "✅ Bet bevestigd"
         )
 
@@ -364,7 +405,7 @@ def handle_button(update, context):
 
         decision = False
 
-        query.edit_message_text(
+        await query.edit_message_text(
             "❌ Bet geweigerd"
         )
 
@@ -380,7 +421,8 @@ CURRENT_KEY = 0
 async def main():
     rows = sheet.get_all_values()
     pairs = []
-
+    settlement_col = 19
+    
     fixture_pattern = r"^id\d+$"
     market_pattern = r"^\d+$"
 
@@ -396,34 +438,47 @@ async def main():
             re.match(fixture_pattern, event_fixture)
             and
             re.match(market_pattern, market_fixture)
-        ):
-            pairs.append(
-                (
-                    event_fixture,
-                    market_fixture,
-                    row_index
+        ):  
+            if not sheet.cell(row_index, settlement_col).value:
+                pairs.append(
+                    (
+                        event_fixture,
+                        market_fixture,
+                        row_index
+                    )
                 )
-            )
 
-    for event_fixture, market_fixture, row_idx in pairs:
-  
-        settlements = get_settlements(fixtureid=event_fixture)
-        result = settlements["markets"][market_fixture]["outcomes"][market_fixture]['players']["0"]["result"]
+    grouped = defaultdict(list)
     
-        settlement_col = 19
-        if result == "WIN":
-            value = "Ja"
+    for event_fixture, market_fixture, row_idx in pairs:
+        grouped[event_fixture].append(
+            (market_fixture, row_idx)
+        )
+    
+    for event_fixture, markets in grouped.items():
+        
+        settlements = get_settlements(fixtureid=event_fixture)
+        for market_fixture, row_idx in markets:
+        
+            try:
+                result = settlements["markets"][market_fixture]["outcomes"][market_fixture]['players']["0"]["result"]
+                
+                if result == "WIN":
+                    value = "Ja"
 
-        elif result == "LOSE":
-            value = "Nee"
+                elif result == "LOSE":
+                    value = "Nee"
 
-        elif result == "UNDECIDED":
-            value = "Onbepaald"
+                elif result == "UNDECIDED":
+                    value = "Onbepaald"
 
-        sheet.update_cell(row_idx, settlement_col, value)
+                sheet.update_cell(row_idx, settlement_col, value)
+                
+            except Exception as e:
+                print(f"Result van marketid {market_fixture} niet kunnen ophalen: {e}")
+                sheet.update_cell(row_idx, settlement_col, "Onbekend")
 
-
-    tournaments = get_tournaments()[:20]
+    tournaments = get_tournaments()[:50]
 
     print(
         f"{len(tournaments)} competities gevonden"
@@ -539,7 +594,7 @@ Deze bet loggen?
                                     } 
                                 
                                 print('-------------------------')
-                                print(outcomes)
+                                pprint(outcomes)
                                 
                                 keyboard = [
                                     [

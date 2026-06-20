@@ -161,7 +161,8 @@ def build_bet(outcomes, odds, value_team, true_prob_val):
 # ---------------- GOOGLE SHEETS LOG ----------------
 
 def log_to_sheet(bet=None, league=None, land=None, teams=None, manual_input=False):
-
+    next_row = len(sheet.get_all_values()) + 1
+    
     if manual_input:
         row = [
             datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -205,10 +206,12 @@ def log_to_sheet(bet=None, league=None, land=None, teams=None, manual_input=Fals
 
         ]
    
-    next_row = len(sheet.get_all_values()) + 1
-    sheet.update(
-        f"A{next_row}:S{next_row}",
-        [row])
+        fixture_id, market_id = sheet.find(bet["fixture_id"]), sheet.find(bet["market_id"])
+        
+        if not fixture_id and market_id:
+            sheet.update(
+                f"A{next_row}:S{next_row}",
+                [row]) 
 
 
 sheet = connect_sheet()
