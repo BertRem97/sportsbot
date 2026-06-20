@@ -439,7 +439,7 @@ async def main():
             and
             re.match(market_pattern, market_fixture)
         ):  
-            if not sheet.cell(row_index, settlement_col).value:
+            if not sheet.cell(row_index, settlement_col).value != "Ja" or "Nee":
                 pairs.append(
                     (
                         event_fixture,
@@ -454,14 +454,17 @@ async def main():
         grouped[event_fixture].append(
             (market_fixture, row_idx)
         )
-    
+
     for event_fixture, markets in grouped.items():
         
         settlements = get_settlements(fixtureid=event_fixture)
+    
         for market_fixture, row_idx in markets:
-        
+            market_fixture = str(market_fixture).strip().lstrip("'")
+            
             try:
                 result = settlements["markets"][market_fixture]["outcomes"][market_fixture]['players']["0"]["result"]
+                
                 
                 if result == "WIN":
                     value = "Ja"
@@ -475,7 +478,7 @@ async def main():
                 sheet.update_cell(row_idx, settlement_col, value)
                 
             except Exception as e:
-                print(f"Result van marketid {market_fixture} niet kunnen ophalen: {e}")
+                print(f"Result van marketid {market_fixture} met eventid {event_fixture} niet kunnen ophalen: {e}")
                 sheet.update_cell(row_idx, settlement_col, "Onbekend")
 
     tournaments = get_tournaments()[:50]
