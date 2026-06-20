@@ -557,20 +557,20 @@ async def main():
                             ev = round(ev, 2)
                             if ev > 0:
                                 msg = f"""========VALUE BET=========
-{teamnames}
-League: {league}
-Tournament: {tournament}
-EV: {ev}%
-Stake: €{stake_bet}
-Possible Profit: €{payout}
-Bookmaker: {bookmaker}
-Quotering: {max_odd}
-Waarschijnlijkheid: {win_chance:.2f}%
-Overwaarde: {ov:.2f}%
-Betslip: {betslip}
+    {teamnames}
+    League: {league}
+    Tournament: {tournament}
+    EV: {ev}%
+    Stake: €{stake_bet}
+    Possible Profit: €{payout}
+    Bookmaker: {bookmaker}
+    Quotering: {max_odd}
+    Waarschijnlijkheid: {win_chance:.2f}%
+    Overwaarde: {ov:.2f}%
+    Betslip: {betslip}
 
-Deze bet loggen?
-"""
+    Deze bet loggen?
+    """
                                 print(msg)
 
                                 bet = {
