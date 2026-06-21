@@ -106,7 +106,6 @@ def get_available_tournaments(
                 bookmaker,
             
             )
-            pprint(fixtures)
 
             found_ids = {
 
@@ -241,7 +240,7 @@ def get_fixture_odds(fixture_id,bookmaker):
         params)
     
     ODDS_CACHE[key] = data
-    pprint(data)
+  
     return data
 
 # -----------------------------
@@ -549,7 +548,14 @@ async def main():
                     implied_odd = float(1 / outcomes["max_odds"])
                     avg_chance_win = outcomes["avg_chance_win"]
                     bookmaker = outcomes["bookmaker"]
-                    betslip = outcomes["all_prices"][0]["betslip"]
+                    betslip = next(
+                        (
+                            i["betslip"]
+                            for i in outcomes["all_prices"]
+                            if i["bookmaker"] == "bwin.be"
+                        ),
+                        None,
+)
                     max_odd = outcomes["max_odds"]
                     win_chance = avg_chance_win * 100
 

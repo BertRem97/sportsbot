@@ -18,27 +18,23 @@ ODDSPAPI_KEYS = ["5265b599-d454-43da-b139-273eddeca635", "80e869e5-4331-496c-a07
 
 
 BOOKMAKERS = [
+    "cashpoint",
     "bwin.be",
     "ladbrokes",
     "bcgame",
     "unibet",
     "betano",
     "pinnacle",
-    #"betfirst.be",
-    #"betcenter.be",
-    #"winamax.fr"
 ]
 
 USED_BOOKMAKERS = [
-    "bwin.be",
+    "cashpoint",
     "unibet",
     "betano",
     "ladbrokes",
     "bcgame",
     "pinnacle",
-    #"betfirst.be",
-    #"betcenter.be",
-    #"winamax.fr"
+    "bwin.be",
 ]
 
 min_percentage_ov = 10
