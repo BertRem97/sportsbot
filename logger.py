@@ -182,6 +182,8 @@ def log_to_sheet(bet=None, league=None, land=None, teams=None, manual_input=Fals
             bet['bet_placed'],
             "{:.2f}".format(bet["ev"]).replace(".", ","),
         ]
+        
+        return True
 
     elif not manual_input:
         row = [
@@ -207,11 +209,14 @@ def log_to_sheet(bet=None, league=None, land=None, teams=None, manual_input=Fals
         ]
    
         fixture_id, market_id = sheet.find(bet["fixture_id"]), sheet.find(bet["market_id"])
+        print(fixture_id, market_id)
         
-        if not fixture_id and market_id:
+        if not (fixture_id and market_id):
             sheet.update(
                 f"A{next_row}:S{next_row}",
-                [row]) 
+                [row])
+                
+            return True
 
 
 sheet = connect_sheet()

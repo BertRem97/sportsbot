@@ -106,6 +106,7 @@ def get_available_tournaments(
                 bookmaker,
             
             )
+            pprint(fixtures)
 
             found_ids = {
 
@@ -120,9 +121,9 @@ def get_available_tournaments(
                         tournament
                     )
 
-        except requests.exceptions.HTTPError:
+        except requests.exceptions.HTTPError as e:
 
-            print(f"Batch {batch} overgeslagen")
+            print(f"Batch {batch} overgeslagen: {e}")
             continue
 
 
@@ -161,6 +162,7 @@ def api_get(endpoint, params):
                 params=params
             )
             print(response)
+            return response
 
     response.raise_for_status()
 
@@ -239,7 +241,7 @@ def get_fixture_odds(fixture_id,bookmaker):
         params)
     
     ODDS_CACHE[key] = data
-
+    pprint(data)
     return data
 
 # -----------------------------
@@ -304,7 +306,9 @@ def analyse_market_data(market_map):
 
                     "price": player["price"],
 
-                    "betslip": player["betslip"]
+                    "betslip": player["betslip"],
+                    
+                    "market_outcome": player["bookmakerOutcomeId"]
 
                 })
 
@@ -397,7 +401,7 @@ async def handle_button(update, context):
 
         decision = True
 
-        await query.edit_message_text(
+        await query.message.reply_text(
             "✅ Bet bevestigd"
         )
 
@@ -405,7 +409,7 @@ async def handle_button(update, context):
 
         decision = False
 
-        await query.edit_message_text(
+        await query.message.reply_text(
             "❌ Bet geweigerd"
         )
 
@@ -486,7 +490,7 @@ async def main():
     print(
         f"{len(tournaments)} competities gevonden"
     )
-
+   
     available = get_available_tournaments(
         tournaments,
         BOOKMAKERS[0]
@@ -629,8 +633,10 @@ async def main():
 
                                 await decision_event.wait()
                                 if decision:
-                                    log_to_sheet(bet=bet)
-                                    print("✔ Opgeslagen in Google Sheets")
+                                    if log_to_sheet(bet=bet):
+                                        print("✔ Opgeslagen in Google Sheets")
+                                    else:
+                                        print("Fout tijdens het loggen")
                                 
                                 else:
                                     continue
