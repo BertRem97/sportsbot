@@ -120,7 +120,7 @@ def get_available_tournaments(
 
         except requests.exceptions.HTTPError as e:
 
-            print(f"Batch {batch} overgeslagen: {e}")
+            print(f"Batch {batch} overgeslagen")
             continue
 
 
