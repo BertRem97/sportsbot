@@ -537,7 +537,12 @@ async def main():
                     implied_odd = float(1 / outcomes["max_odds"])
                     avg_chance_win = outcomes["avg_chance_win"]
                     bookmaker = outcomes["bookmaker"]
-                    
+
+                    other_odds = {x["bookmaker"]: x["price"] for x in outcomes["all_prices"] if x['bookmaker'] != outcomes["bookmaker"]}
+                    odds_text = "\n".join(
+                        f"{bookmaker} @ {price}"
+                        for bookmaker, price in other_odds.items()
+)
                     betslip = next(
                         (
                             i["betslip"]
@@ -566,12 +571,13 @@ async def main():
     EV: {ev}%
     Stake: €{stake_bet}
     Possible Profit: €{payout}
-    Bookmaker: {bookmaker}
-    Quotering: {max_odd}
     Waarschijnlijkheid: {win_chance:.2f}%
     Overwaarde: {ov:.2f}%
     Betslip: {betslip}
-
+    Bookmaker: {bookmaker} @ {max_odd}
+    -----------------------------------
+    {odds_text}
+    
     Deze bet loggen?
     """
                                 print(msg)
