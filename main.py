@@ -83,13 +83,13 @@ def get_settlements(fixtureid):
         params
     )
 
+
 def get_available_tournaments(
         tournaments,
         bookmaker="unibet.be"
 ):
 
-    available = []
-
+    AVAILABLE_TOURNAMENTS = defaultdict(list)
 
     tournament_ids = [
         t["tournamentId"]
@@ -107,26 +107,24 @@ def get_available_tournaments(
             
             )
 
-            found_ids = {
-
-                fixture["tournamentId"]
+            for fixture in fixtures:
+                found_ids = {
+                    fixture["tournamentId"]
+                    }
                 
-                for fixture in fixtures}
+                for tournament in tournaments:
 
-            for tournament in tournaments:
-
-                if tournament["tournamentId"] in found_ids:
-                    available.append(
-                        tournament
-                    )
+                    if tournament["tournamentId"] in found_ids:
+                        AVAILABLE_TOURNAMENTS[fixture["tournamentId"]].append(fixture)
+          
 
         except requests.exceptions.HTTPError as e:
 
-            print(f"Batch {batch} overgeslagen: {e}")
+            print(f"Batch {batch} overgeslagen")
             continue
 
 
-    return available
+    return AVAILABLE_TOURNAMENTS
 
 # -----------------------------
 # API
@@ -484,7 +482,7 @@ async def main():
                 print(f"Result van marketid {market_fixture} met eventid {event_fixture} niet kunnen ophalen: {e}")
                 sheet.update_cell(row_idx, settlement_col, "Onbekend")
 
-    tournaments = get_tournaments()[:50]
+    tournaments = get_tournaments()[:100]
 
     print(
         f"{len(tournaments)} competities gevonden"
@@ -495,30 +493,21 @@ async def main():
         BOOKMAKERS[0]
     )
 
-    print("\nBeschikbare competities:\n")
+    print(f"{len(available)} Beschikbare competities bij {BOOKMAKERS[0]}\n")
 
-    for t in available:
+    for k,v in available.items():
+        for fixture in v:
 
-        print(t["tournamentId"],"-",t["categoryName"],
-            "-",t["tournamentName"]
-        )
+            print(fixture["tournamentId"],"-",fixture["categoryName"],
+                "-",fixture["tournamentName"]
+            )
+        
+            print(
+                "Aantal wedstrijden:",
+                len(available)
+            )
 
-        tournament_id = t["tournamentId"]
-
-
-        fixtures = get_odds_by_tournaments(
-            tournament_id,
-            BOOKMAKERS[0],
-        )
-
-
-        print(
-            "Aantal wedstrijden:",
-            len(fixtures)
-        )
-
-
-        for fixture in fixtures:
+           
             teamnames = f"{fixture['participant1Name']} - {fixture['participant2Name']}"
             league = fixture["statusName"]
             tournament = fixture["tournamentSlug"]
@@ -548,6 +537,12 @@ async def main():
                     implied_odd = float(1 / outcomes["max_odds"])
                     avg_chance_win = outcomes["avg_chance_win"]
                     bookmaker = outcomes["bookmaker"]
+
+                    other_odds = {x["bookmaker"]: x["price"] for x in outcomes["all_prices"] if x['bookmaker'] != outcomes["bookmaker"]}
+                    odds_text = "\n".join(
+                        f"{bookmaker} @ {price}"
+                        for bookmaker, price in other_odds.items()
+)
                     betslip = next(
                         (
                             i["betslip"]
@@ -576,12 +571,13 @@ async def main():
     EV: {ev}%
     Stake: €{stake_bet}
     Possible Profit: €{payout}
-    Bookmaker: {bookmaker}
-    Quotering: {max_odd}
     Waarschijnlijkheid: {win_chance:.2f}%
     Overwaarde: {ov:.2f}%
     Betslip: {betslip}
-
+    Bookmaker: {bookmaker} @ {max_odd}
+    -----------------------------------
+    {odds_text}
+    
     Deze bet loggen?
     """
                                 print(msg)
