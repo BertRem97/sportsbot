@@ -3,7 +3,7 @@ from pprint import pprint
 from collections import defaultdict
 import statistics
 from config import BOOKMAKERS, USED_BOOKMAKERS
-from config import TELEGRAM_TOKEN, CHAT_ID
+from config import TELEGRAM_TOKEN, CHAT_ID, KELLY_FRACTION
 from config import min_win_chance, min_percentage_ov
 import logger_dev as logger
 from telegram import InlineKeyboardButton, Bot
@@ -21,9 +21,101 @@ decision = None
 decision_event = asyncio.Event()
 
 
+
+def calculate(update, context):
+    print(context.user_data)
+
+    
+
+def implied_probs(odds_list):
+    """Convert odds → normalized true probabilities"""
+    hinge = False
+    inv = [1 / o for o in odds_list]
+    total = sum(inv)
+    true_probs = [i / total for i in inv]
+
+    if total < 1:
+        hinge = True
+
+    return hinge
+
+def hedge(stake_val, odds, index):
+    payout = stake_val * odds[index]
+    other_odds = [odd for i, odd in enumerate(odds) if i != index]
+
+    if len(other_odds) > 1:
+        return payout / other_odds[0], payout / other_odds[1], payout
+    
+    else:
+        return payout / other_odds[0], None, payout
+
+
+async def calculate_ev_stakes_wkelly(odds=None,
+                             index=None, p=None, hinge=False, odd= None,
+                             fraction=KELLY_FRACTION):
+    
+    implied_odds = None
+    if odds:
+        implied_odds = odds[index]
+
+    else:
+        if odd:
+            implied_odds = odd
+
+    p = p / 100
+    b = implied_odds - 1
+    q = 1 - p
+    f = (b*p - q) / b
+
+    ev = (p * b) - (q * 1)
+
+    if b <= 0:
+        return 0
+    
+    stake_value = bankroll * f * fraction
+    payout = stake_value * implied_odds if implied_odds is not None else None
+
+    stakes = {"stake_val": stake_value,
+            "stake_x": None,
+            "stake_y": None}
+           
+    if hinge:
+        keyboard = [
+            [
+                InlineKeyboardButton(text="Ja", callback_data="hinge_yes"),
+                InlineKeyboardButton(text="Nope", callback_data="hinge_no")
+            ]
+        ]
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        
+        stake_x, stake_y, payout = hedge(stake_value, odds, index)
+    
+        stakes["stake_x"] = stake_x
+        stakes["stake_y"] = stake_y
+
+    return stakes, ev, payout
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # -----------------------------
 # ANALYSE ODDS
 # -----------------------------
+
 
 def analyse_market_data(market_map):
 
@@ -172,12 +264,10 @@ async def handle_button(update, context):
 
 async def handle_tekst_message(update, context):
     text = update.message.text 
-    data = []
-    outcomes = {}
-    print(context.user_data.get("awaiting_teams")[0])
+    
     if context.user_data.get("awaiting_teams")[0]:
         teams = text
-        data.append(teams)
+        context.user_data["teams"] = teams
 
 
         await bot.send_message(chat_id=CHAT_ID, text="Voer de league in", 
@@ -190,7 +280,7 @@ async def handle_tekst_message(update, context):
         
     elif context.user_data.get("awaiting_league"):
         league = text
-        data.append(league)
+        context.user_data["league"] = league
 
         await bot.send_message(chat_id=CHAT_ID, text="In welk land wordt er gespeeld?", 
                      reply_markup=ForceReply(selective=True))
@@ -201,7 +291,7 @@ async def handle_tekst_message(update, context):
 
     elif context.user_data.get("awaiting_land"):
         land = text
-        data.append(land)
+        context.user_data["land"] = land
 
         await bot.send_message(chat_id=CHAT_ID, text="Op welke outcome heb je een value bet?", 
                      reply_markup=ForceReply(selective=True))
@@ -211,7 +301,7 @@ async def handle_tekst_message(update, context):
     
     elif context.user_data.get("awaiting_outcome_v"):
         value_team = text
-        data.append(value_team)
+        context.user_data["outcome_value_bet"] = value_team
 
         await bot.send_message(chat_id=CHAT_ID, text="Wat is de ware kans dat het team wint bv'%30?", 
                      reply_markup=ForceReply(selective=True))
@@ -222,7 +312,7 @@ async def handle_tekst_message(update, context):
 
     elif context.user_data.get("awaiting_true_prob"):
         true_prob = text
-        data.append(true_prob)
+        context.user_data["true_prob"] = true_prob
 
         await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering outcome 1 volgens format: thuis 2.8", 
                      reply_markup=ForceReply(selective=True))
@@ -237,15 +327,17 @@ async def handle_tekst_message(update, context):
 
         try:
             name, price = outcome_1.split(" ")
-
-            outcomes[name] = price
-            await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering outcome 1 volgens format: tie 2.9", 
+            name = name.strip()
+            context.user_data['outcomes'] = {}
+            context.user_data['outcomes'][name] = price
+            await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering outcome 2 volgens format: tie 2.9", 
                         reply_markup=ForceReply(selective=True))
             
         except:
-            await update.message.reply_text(chat_id=CHAT_ID, text="Voer naam en quotering in gescheiden door één spatie")
-                  
+            await update.message.reply_text(text="Voer naam en quotering in gescheiden door één spatie")
+                
 
+                  
         context.user_data["awaiting_outcome_1"] = False
         context.user_data["awaiting_outcome_2"] = True
 
@@ -254,40 +346,49 @@ async def handle_tekst_message(update, context):
 
         try:
             name, price = outcome_2.split(" ")
+            name = name.strip()
 
-            outcomes[name] = price
-            await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering outcome 2 volgens format: tie 2.9", 
+            if not context.user_data.get("outcome_value_bet") in context.user_data['outcomes']:
+                await bot.send_message(chat_id=CHAT_ID, text="Outcome value bet niet teruggevonden")
+            
+            context.user_data["awaiting_outcome_2"] = False
+            context.user_data['outcomes'][name] = price
+
+            if context.user_data.get("awaiting_teams")[1] == 3:
+                await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering outcome 3 volgens format: tie 2.9", 
                         reply_markup=ForceReply(selective=True))
             
+                context.user_data["awaiting_outcome_3"] = True
+            
+            calculate(update, context)
+            
         except:
-            await update.message.reply_text(chat_id=CHAT_ID, text="Voer naam en quotering in gescheiden door één spatie")
-
-        
-        context.user_data["awaiting_outcome_2"] = False
-        context.user_data["awaiting_outcome_3"] = True
-
-    if context.user_data.get("awaiting_teams")[1] == 3:
-        if context.user_data.get("awaiting_outcome_3"):
-            outcome_3 = text
-
-            try:
-                name, price = outcome_1.split(" ")
-
-                outcomes[name] = price
-                await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering outcome 3 volgens format: tie 2.9", 
-                            reply_markup=ForceReply(selective=True))
-                
-                context.user_data["awaiting_outcome_3"] = False
-                context.user_data["awaiting_outcomes"][1] = None
-                
-            except:
-                await update.message.reply_text(chat_id=CHAT_ID, text="Voer naam en quotering in gescheiden door één spatie")
-
-    print(data)
-    print(outcomes)        
-                
+            await update.message.reply_text(text="Voer naam en quotering in gescheiden door één spatie")
 
     
+    elif context.user_data.get("awaiting_outcome_3"):
+        outcome_3 = text
+
+        try:
+            name, price = outcome_3.split(" ")
+            name = name.strip()
+            if not context.user_data.get("outcome_value_bet") in context.user_data['outcomes']:
+                await bot.send_message(chat_id=CHAT_ID, text="Outcome value bet niet teruggevonden")
+
+            context.user_data[name] = price
+            await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering outcome 3 volgens format: tie 2.9", 
+                        reply_markup=ForceReply(selective=True))
+            
+            context.user_data["awaiting_outcome_3"] = False
+            context.user_data["awaiting_outcomes"][1] = None
+
+            calculate(update, context)
+
+            
+        except:
+            await update.message.reply_text(text="Voer naam en quotering in gescheiden door één spatie")
+
+
 
 # ---------------- STRATEGY ----------------
 
@@ -309,8 +410,8 @@ async def build_bet(update, context):
         await bot.send_message(chat_id=CHAT_ID, text="Voer het aantal outcomes in (2 of 3)", 
                      reply_markup=reply_markup)
         
-        
-        
+    
+        print(context.user_data)
 
     elif cmmd == "/run":
         pass
