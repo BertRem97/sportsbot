@@ -136,13 +136,20 @@ async def handle_button(update, context):
     global decision
 
     query = update.callback_query
-    tekst = query.message.tekst
-
-    if tekst == "Voer het aantal outcomes in (2 of 3): ":
-        pass
-
+    tekst = query.message.text
 
     await query.answer()
+    
+    if tekst == "Voer het aantal outcomes in (2 of 3)":
+        await context.bot.send_message(chat_id=CHAT_ID, 
+                                   text="Voer de teamnames in volgens volgend formaat: 'Belgie - Iran'",
+                                   reply_markup=ForceReply(selective=True))
+        
+        if query.data == "outcomes_3":
+            context.user_data["awaiting_teams"] = [True, 3]
+            
+        elif query.data == "outcomes_2":
+            context.user_data["awaiting_teams"] = [True, 2]
 
     if query.data == "bet_yes":
 
@@ -164,32 +171,151 @@ async def handle_button(update, context):
 
 
 async def handle_tekst_message(update, context):
-    pass
+    text = update.message.text 
+    data = []
+    outcomes = {}
+    print(context.user_data.get("awaiting_teams")[0])
+    if context.user_data.get("awaiting_teams")[0]:
+        teams = text
+        data.append(teams)
 
 
+        await bot.send_message(chat_id=CHAT_ID, text="Voer de league in", 
+                     reply_markup=ForceReply(selective=True))
+        
+        context.user_data["awaiting_teams"][0] = False
+        context.user_data["awaiting_teams"][1] = None
+        
+        context.user_data["awaiting_league"] = True
+        
+    elif context.user_data.get("awaiting_league"):
+        league = text
+        data.append(league)
 
+        await bot.send_message(chat_id=CHAT_ID, text="In welk land wordt er gespeeld?", 
+                     reply_markup=ForceReply(selective=True))
+        
+        context.user_data["awaiting_league"] = False
+        context.user_data["awaiting_land"] = True
+
+
+    elif context.user_data.get("awaiting_land"):
+        land = text
+        data.append(land)
+
+        await bot.send_message(chat_id=CHAT_ID, text="Op welke outcome heb je een value bet?", 
+                     reply_markup=ForceReply(selective=True))
+        
+        context.user_data["awaiting_land"] = False
+        context.user_data["awaiting_outcome_v"] = True
+    
+    elif context.user_data.get("awaiting_outcome_v"):
+        value_team = text
+        data.append(value_team)
+
+        await bot.send_message(chat_id=CHAT_ID, text="Wat is de ware kans dat het team wint bv'%30?", 
+                     reply_markup=ForceReply(selective=True))
+        
+    
+        context.user_data["awaiting_outcome_v"] = False
+        context.user_data["awaiting_true_prob"] = True
+
+    elif context.user_data.get("awaiting_true_prob"):
+        true_prob = text
+        data.append(true_prob)
+
+        await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering outcome 1 volgens format: thuis 2.8", 
+                     reply_markup=ForceReply(selective=True))
+
+        context.user_data["awaiting_true_prob"] = False
+        context.user_data["awaiting_outcome_1"] = True 
+
+
+        
+    elif context.user_data.get("awaiting_outcome_1"):
+        outcome_1 = text
+
+        try:
+            name, price = outcome_1.split(" ")
+
+            outcomes[name] = price
+            await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering outcome 1 volgens format: tie 2.9", 
+                        reply_markup=ForceReply(selective=True))
+            
+        except:
+            await update.message.reply_text(chat_id=CHAT_ID, text="Voer naam en quotering in gescheiden door één spatie")
+                  
+
+        context.user_data["awaiting_outcome_1"] = False
+        context.user_data["awaiting_outcome_2"] = True
+
+    elif context.user_data.get("awaiting_outcome_2"):
+        outcome_2 = text
+
+        try:
+            name, price = outcome_2.split(" ")
+
+            outcomes[name] = price
+            await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering outcome 2 volgens format: tie 2.9", 
+                        reply_markup=ForceReply(selective=True))
+            
+        except:
+            await update.message.reply_text(chat_id=CHAT_ID, text="Voer naam en quotering in gescheiden door één spatie")
+
+        
+        context.user_data["awaiting_outcome_2"] = False
+        context.user_data["awaiting_outcome_3"] = True
+
+    if context.user_data.get("awaiting_teams")[1] == 3:
+        if context.user_data.get("awaiting_outcome_3"):
+            outcome_3 = text
+
+            try:
+                name, price = outcome_1.split(" ")
+
+                outcomes[name] = price
+                await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering outcome 3 volgens format: tie 2.9", 
+                            reply_markup=ForceReply(selective=True))
+                
+                context.user_data["awaiting_outcome_3"] = False
+                context.user_data["awaiting_outcomes"][1] = None
+                
+            except:
+                await update.message.reply_text(chat_id=CHAT_ID, text="Voer naam en quotering in gescheiden door één spatie")
+
+    print(data)
+    print(outcomes)        
+                
+
+    
 
 # ---------------- STRATEGY ----------------
 
-async def build_bet(manual=False):
+async def build_bet(update, context):
+    cmmd = update.message.text
+
     error_msg = "Bet reeds gelogd, log een ander bet"
     succes_msg = "✔ Opgeslagen in Google Sheets"
-    print('ok')
-    if manual:
-        print('yes')
-
+    
+    if cmmd == "/log":
         keyboard = [
             [
-                InlineKeyboardButton(text="2", callback_data="outcomes_3"),
-                InlineKeyboardButton(text="3", callback_data="outcomes_2")
+                InlineKeyboardButton(text="2", callback_data="outcomes_2"),
+                InlineKeyboardButton(text="3", callback_data="outcomes_3")
             ]
         ]
 
         reply_markup = InlineKeyboardMarkup(keyboard)
-
-        
-        await bot.send_message(chat_id=CHAT_ID, text="Voer het aantal outcomes in (2 of 3): ", 
+        await bot.send_message(chat_id=CHAT_ID, text="Voer het aantal outcomes in (2 of 3)", 
                      reply_markup=reply_markup)
+        
+        
+        
+
+    elif cmmd == "/run":
+        pass
+        
+        
     
 
     
@@ -212,7 +338,7 @@ async def main():
     pass
     #logger.get_settlements()
     
-async def run():
+def run():
 
     application = (
         Application.builder()
@@ -226,25 +352,21 @@ async def run():
 
     application.add_handler(
         MessageHandler(
-            filters.TEXT & filters.COMMAND,
+            filters.TEXT & ~filters.COMMAND,
             handle_tekst_message
         )
     )
 
     application.add_handler(
-        CommandHandler("manuallog", await build_bet(manual=True))
+        CommandHandler(["log", "run"], build_bet)
     )
 
-    application.add_handler(
-        CommandHandler("autosearch", await build_bet(manual=False))
-    )
-
-    await application.run_polling()
+    application.run_polling()
 
 
 
 if __name__ == "__main__":
-    asyncio.run(run())
+    run()
     
 
     
