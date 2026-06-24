@@ -20,6 +20,24 @@ import apiwrapper_dev as api
 decision = None
 decision_event = asyncio.Event()
 
+async def log_data(context, update):
+     data = context.user_data
+     writing_data = {
+        "outcomes": outcomes,
+        "odds": odds,
+        "ev": ev,
+        "bet_placed": bet_placed,
+        "stakes": stakes,
+        "hinge": False,
+        "net_profit": net_profit,
+        "stake_val_bet": stakes["stake_val"],
+        "total_stake": total_stakes,
+        "outcome_bet": value_team,
+        "min_odd_other_p": None,
+        "min_stake_other_p": None,
+        "other_p": None
+        }  
+
 def calculate_hinge_1X2_after(odd_val, stake_val):
     total_implied_odds = 0.99
     chance_val = 1 / odd_val
@@ -33,6 +51,7 @@ def calculate_hinge_1X2_after(odd_val, stake_val):
 
 async def calculate(update, context):
     data = context.user_data
+
     value_team = data["outcome_value_bet"]
     outcomes = [i for i in data["outcomes"].keys()]
     odds = [i for i in data["outcomes"].values()]
@@ -41,42 +60,10 @@ async def calculate(update, context):
     odds_val_bet = data["outcomes"][value_team]
     other_odds = [v for k, v in data["outcomes"].items() if k != value_team]
 
-    stakes, ev, payout = calculate_ev_stakes_wkelly(odds_val_bet, 
-                                          true_prob, hinge, KELLY_FRACTION, context, update, other_odds)
+    calculate_ev_stakes_wkelly(odds_val_bet,
+                                true_prob, hinge, KELLY_FRACTION, context, update, other_odds)
     
-    total_stakes = (lambda x: sum(x))([i for i in stakes.values() if i is not None])
-    net_profit = payout - total_stakes
-
-    writing_data = {
-        "outcomes": outcomes,
-        "odds": odds,
-        "ev": ev,
-        "bet_placed": value_team,
-        "stakes": stakes,
-        "hinge": False,
-        "net_profit": net_profit,
-        "stake_val_bet": stakes["stake_val"],
-        "total_stake": total_stakes,
-        "min_odd_other_p": None,
-        "min_stake_other_p": None,
-        "other_p": None
-        }  
-
-    if hinge:
-        data["hinge"] = True
-
     
-    else:
-        if len(outcomes) != 3:
-            min_odds, min_stake = calculate_hinge_1X2_after(odds_val_bet, stakes['stake_val'])
-            data["min_odd_other_p"] = min_odds
-            data["min_stake_other_p"] = min_stake
-            data["other_p"] = other_p
-            
-            payout_other_p = data["min_stake_other_p"]
-    return data
-    
-
 def implied_probs(odds_list):
     """Convert odds → normalized true probabilities"""
     hinge = False
@@ -99,6 +86,14 @@ def hedge(stake_val, odd, other_odds):
         return payout / other_odds[0], None, payout
 
 
+
+
+
+
+
+
+
+
 async def calculate_ev_stakes_wkelly(odd_val_bet,
                              p, hinge,
                              fraction, context, update, other_odds):
@@ -108,7 +103,6 @@ async def calculate_ev_stakes_wkelly(odd_val_bet,
 
     if odd_val_bet:
         implied_odds = odd_val_bet
-
 
     p = p / 100
     b = implied_odds - 1
@@ -123,9 +117,23 @@ async def calculate_ev_stakes_wkelly(odd_val_bet,
     stake_value = logger.bankroll * f * fraction
     payout = stake_value * implied_odds if implied_odds is not None else None
 
-    stakes = {"stake_val": stake_value,
-            "stake_x": None,
-            "stake_y": None}
+    data["stakes"] = {}
+    data["stakes"]["stake_val"] = stake_value
+    data["stakes"]["stake_x"] = None,
+    data["stakes"]["stake_y"] = None
+    data["payout"] = payout
+    data["ev"] = ev
+
+    if len(data["outcomes"]) != 3:
+        min_odds, min_stake = calculate_hinge_1X2_after(odd_val_bet, stake_value)
+        data["min_odd_other_p"] = min_odds
+        data["min_stake_other_p"] = min_stake
+        data["other_p"] = [k for k in data["outcomes"].keys() if k != data["outcome_value_bet"]]
+  
+    total_stakes = (lambda x: sum(x))([i for i in data["stakes"].values() if i is not None])
+    net_profit = payout - total_stakes
+
+    data["net_profit"] = net_profit
            
     if hinge and context.user_data["awaiting_teams"][1] == 2:
         keyboard = [
@@ -142,10 +150,14 @@ async def calculate_ev_stakes_wkelly(odd_val_bet,
 
         context.user_data["awaiting_teams"][1] = None
         stake_x, stake_y, payout = hedge(stake_value, odd_val_bet, other_odds)
-        data["stake_x"] = stake_x
-        data["stake_y"] = stake_y
+        data["stakes"]["stake_x"] = stake_x
+        data["stakes"]["stake_y"] = stake_y
+        
+    print(context.user_data)
+    #await log_data(context, update)
 
-    return stakes, ev, payout
+
+    
 
 
 
@@ -308,6 +320,11 @@ async def handle_button(update, context):
         await query.message.reply_text(
             "❌ Bet geweigerd"
         )
+
+    if tekst == "Sure bet mogelijk, wil je hingen?":
+        if query.data == "hinge_yes":
+            context.user_data["hinge"] = True
+        
 
     decision_event.set()
 
