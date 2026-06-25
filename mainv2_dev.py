@@ -37,11 +37,11 @@ async def calculate(update, context):
 
     value_team = data["outcome_value_bet"]
     outcomes = [i for i in data["outcomes"].keys()]
-    odds = map(float, [i for i in data["outcomes"].values()])
+    odds = map(float, [i[0] for i in data["outcomes"].values()])
     true_prob = float(data["win_chance"])
     hinge = implied_probs(odds)
-    odds_val_bet = float(data["outcomes"][value_team])
-    other_odds = map(float, [v for k, v in data["outcomes"].items() if k != value_team])
+    odds_val_bet = float(data["outcomes"][value_team][0])
+    other_odds = map(float, [v[0] for k, v in data["outcomes"].items() if k != value_team])
 
     await calculate_ev_stakes_wkelly(odds_val_bet,
                                 true_prob, hinge, KELLY_FRACTION, context, update, other_odds)
@@ -87,14 +87,14 @@ async def calculate_ev_stakes_wkelly(odd_val_bet,
     stake_value = logger.bankroll * f * fraction
     payout = stake_value * implied_odds if implied_odds is not None else None
     value_team = data['outcome_value_bet']
-    value_odd = data["outcomes"][value_team]
+    value_odd = data["outcomes"][value_team][0]
 
     data["stakes"] = {}
     data["stakes"]["stake_val"] = stake_value
     data["stakes"]["stake_x"] = None
     data["payout"] = payout
     data["ev"] = ev
-    data["ov"] = float(value_odd / (1 / data['win_chance']) - 1) * 100
+    data["ov"] = float(value_odd / (1 / float(data['win_chance'])) - 1) * 100
     data["odd"] = value_odd
     
     if len(data["outcomes"]) != 3:
@@ -325,12 +325,24 @@ async def handle_tekst_message(update, context):
         value_team = text.lower()
         context.user_data["outcome_value_bet"] = value_team
 
-        await bot.send_message(chat_id=CHAT_ID, text="Wat is de ware kans dat het team wint bv'%30?", 
+        await bot.send_message(chat_id=CHAT_ID, text="Voer de startdatum en tijdstip in volgens format: 07/10/2025 8:00", 
                      reply_markup=ForceReply(selective=True))
         
     
         context.user_data["awaiting_outcome_v"] = False
-        context.user_data["awaiting_true_prob"] = True
+        context.user_data["awaiting_startdate"] = True
+
+
+    elif context.user_data.get("awaiting_startdate"):
+        start_date = text
+        context.user_data['start_event'] = start_date
+
+        await bot.send_message(chat_id=CHAT_ID, text="Wat is de ware kans dat het team wint bv'%30?", 
+                     reply_markup=ForceReply(selective=True))
+
+
+        context.user_data["awaiting_startdate"] = False
+        context.user_data["awaiting_true_prob"] = True 
 
     elif context.user_data.get("awaiting_true_prob"):
         true_prob = text
@@ -357,6 +369,7 @@ async def handle_tekst_message(update, context):
         
         context.user_data["awaiting_outcome_1"] = False
         context.user_data["awaiting_outcome_2"] = True
+    
         
 
     elif context.user_data.get("awaiting_outcome_2"):
@@ -497,7 +510,7 @@ async def build_bet(update, context):
                                 ev = round(ev, 2)
                                 if ev > 0:
                                     bet = {
-                                        "start_time": None,
+                                        "start_event": None,
                                         "odd": max_odd,
                                         "outcome_value_bet": None,
                                         "ev": ev,
