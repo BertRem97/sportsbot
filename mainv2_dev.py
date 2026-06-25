@@ -38,7 +38,7 @@ async def calculate(update, context):
     value_team = data["outcome_value_bet"]
     outcomes = [i for i in data["outcomes"].keys()]
     odds = map(float, [i for i in data["outcomes"].values()])
-    true_prob = float(data["true_prob"])
+    true_prob = float(data["win_chance"])
     hinge = implied_probs(odds)
     odds_val_bet = float(data["outcomes"][value_team])
     other_odds = map(float, [v for k, v in data["outcomes"].items() if k != value_team])
@@ -86,14 +86,14 @@ async def calculate_ev_stakes_wkelly(odd_val_bet,
     
     stake_value = logger.bankroll * f * fraction
     payout = stake_value * implied_odds if implied_odds is not None else None
-
+    value_team = data['outcome_value_bet']
     data["stakes"] = {}
     data["stakes"]["stake_val"] = stake_value
     data["stakes"]["stake_x"] = None
     data["payout"] = payout
     data["ev"] = ev
-   # data["ov"] = float(data["outcomes"][] / (1 / avg_chance_win) - 1) * 100
-
+    data["ov"] = float(data["outcomes"][value_team] / (1 / data['win_chance']) - 1) * 100
+    
     if len(data["outcomes"]) != 3:
         min_odds, min_stake = calculate_hinge_1X2_after(odd_val_bet, stake_value)
         data["min_odd_other_p"] = min_odds
@@ -123,7 +123,9 @@ async def calculate_ev_stakes_wkelly(odd_val_bet,
     data["net_profit"] = net_profit
     data['total_stakes'] = total_stakes
 
-    logger.log_to_sheet(bet=data)
+    print(data)
+
+    #logger.log_to_sheet(bet=data)
 
 
 # -----------------------------
@@ -313,7 +315,7 @@ async def handle_tekst_message(update, context):
         await bot.send_message(chat_id=CHAT_ID, text="Op welke outcome heb je een value bet?", 
                      reply_markup=ForceReply(selective=True))
         
-        context.user_data["awaiting_land"] = False
+        context.user_data["awaiting_tournament"] = False
         context.user_data["awaiting_outcome_v"] = True
     
     elif context.user_data.get("awaiting_outcome_v"):
