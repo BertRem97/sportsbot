@@ -20,47 +20,6 @@ import apiwrapper_dev as api
 decision = None
 decision_event = asyncio.Event()
 
-async def log_data(context, update):
-     
-     print(data)
-     writing_data = {
-        "outcomes": [i for i in data['outcomes'].keys()],
-        "odds": [i for i in data['outcomes'].values()],
-        "ev": data["ev"],
-        "bet_placed": data["outcome_value_bet"],
-        "stakes": [i for i in data['stakes'].values()],
-        "hinge": data['hinge'],
-        "net_profit": data['net_profit'],
-        "stake_val_bet": data['stakes']["stake_val"],
-        "total_stake": data['total_stakes'],
-        "min_odd_other_p": data['min_odd_other_p'],
-        "min_stake_other_p": data['min_stake_other_p'],
-        "other_p": str(data['other_p'])
-        }  
-
-
-
-
-
-
-
-    msg = f"""========VALUE BET=========
-        {teamnames}
-        League: {league}
-        Tournament: {tournament}
-        EV: {ev}%
-        Stake: €{stake_bet}
-        Possible Profit: €{payout}
-        Waarschijnlijkheid: {win_chance:.2f}%
-        Overwaarde: {ov:.2f}%
-        Betslip: {betslip}
-        Bookmaker: {bookmaker} @ {max_odd}
-        -----------------------------------
-        {odds_text}
-        
-        Deze bet loggen?
-        """
-                            
 
 def calculate_hinge_1X2_after(odd_val, stake_val):
     total_implied_odds = 0.99
@@ -133,6 +92,7 @@ async def calculate_ev_stakes_wkelly(odd_val_bet,
     data["stakes"]["stake_x"] = None
     data["payout"] = payout
     data["ev"] = ev
+   # data["ov"] = float(data["outcomes"][] / (1 / avg_chance_win) - 1) * 100
 
     if len(data["outcomes"]) != 3:
         min_odds, min_stake = calculate_hinge_1X2_after(odd_val_bet, stake_value)
@@ -163,8 +123,7 @@ async def calculate_ev_stakes_wkelly(odd_val_bet,
     data["net_profit"] = net_profit
     data['total_stakes'] = total_stakes
 
-        
-    await log_data(context, update)
+    logger.log_to_sheet(bet=data)
 
 
 # -----------------------------
@@ -327,7 +286,7 @@ async def handle_tekst_message(update, context):
     
     if context.user_data.get("awaiting_teams")[0]:
         teams = text
-        context.user_data["teams"] = teams
+        context.user_data["teamnames"] = teams
 
 
         await bot.send_message(chat_id=CHAT_ID, text="Voer de league in", 
@@ -340,16 +299,16 @@ async def handle_tekst_message(update, context):
         league = text
         context.user_data["league"] = league
 
-        await bot.send_message(chat_id=CHAT_ID, text="In welk land wordt er gespeeld?", 
+        await bot.send_message(chat_id=CHAT_ID, text="Voer het toernooi of het land in", 
                      reply_markup=ForceReply(selective=True))
         
         context.user_data["awaiting_league"] = False
-        context.user_data["awaiting_land"] = True
+        context.user_data["awaiting_tournament"] = True
 
 
-    elif context.user_data.get("awaiting_land"):
+    elif context.user_data.get("awaiting_tournament"):
         land = text
-        context.user_data["land"] = land
+        context.user_data["tournament"] = land
 
         await bot.send_message(chat_id=CHAT_ID, text="Op welke outcome heb je een value bet?", 
                      reply_markup=ForceReply(selective=True))
@@ -370,7 +329,7 @@ async def handle_tekst_message(update, context):
 
     elif context.user_data.get("awaiting_true_prob"):
         true_prob = text
-        context.user_data["true_prob"] = true_prob
+        context.user_data["win_chance"] = true_prob
 
         await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering outcome 1 volgens format: thuis 2.8", 
                      reply_markup=ForceReply(selective=True))
@@ -380,7 +339,6 @@ async def handle_tekst_message(update, context):
         context.user_data["awaiting_outcome_1"] = True 
 
 
-        
     elif context.user_data.get("awaiting_outcome_1"):
         outcome_1 = text
     
@@ -531,10 +489,12 @@ async def build_bet(update, context):
                                 ev = round(ev, 2)
                                 if ev > 0:
                                     bet = {
+                                        "start_time": None,
                                         "odd": max_odd,
+                                        "outcome_value_bet": None,
                                         "ev": ev,
                                         "market_id": markets,
-                                        "stake_val": stake_bet,
+                        
                                         "hinge": False,
                                         "net_profit": net_profit,
                                         "stake_val_bet": stakes["stake_val"],
@@ -551,7 +511,11 @@ async def build_bet(update, context):
                                         "win_chance": win_chance,
                                         "ov": ov,
                                         "bookmaker": f"{bookmaker} @ {max_odd}",
-                                        "other_odds": odds_text
+                                        "other_odds": odds_text,
+                                        "outcomes": {x["bookmaker"]: x['price'] for x in outcomes["all_prices"]},
+                                        "stakes": {"stake_val": stake_bet, "stake_x": None},
+
+
                                         } 
                                     
                                     keyboard = [
@@ -583,7 +547,7 @@ async def build_bet(update, context):
 
                                     await decision_event.wait()
                                     if decision:
-                                        log_data(bet=bet)
+                                        log_data(bet=bet, type="VALUE")
                                  
                                     else:
                                         continue
