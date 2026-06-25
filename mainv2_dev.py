@@ -87,12 +87,15 @@ async def calculate_ev_stakes_wkelly(odd_val_bet,
     stake_value = logger.bankroll * f * fraction
     payout = stake_value * implied_odds if implied_odds is not None else None
     value_team = data['outcome_value_bet']
+    value_odd = data["outcomes"][value_team]
+
     data["stakes"] = {}
     data["stakes"]["stake_val"] = stake_value
     data["stakes"]["stake_x"] = None
     data["payout"] = payout
     data["ev"] = ev
-    data["ov"] = float(data["outcomes"][value_team] / (1 / data['win_chance']) - 1) * 100
+    data["ov"] = float(value_odd / (1 / data['win_chance']) - 1) * 100
+    data["odd"] = value_odd
     
     if len(data["outcomes"]) != 3:
         min_odds, min_stake = calculate_hinge_1X2_after(odd_val_bet, stake_value)
@@ -333,7 +336,7 @@ async def handle_tekst_message(update, context):
         true_prob = text
         context.user_data["win_chance"] = true_prob
 
-        await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering outcome 1 volgens format: thuis 2.8", 
+        await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering + bookmaker outcome 1 volgens format: thuis @ 2.8 unibet", 
                      reply_markup=ForceReply(selective=True))
         
 
@@ -344,11 +347,12 @@ async def handle_tekst_message(update, context):
     elif context.user_data.get("awaiting_outcome_1"):
         outcome_1 = text
     
-        name, price = outcome_1.split(" ")
+        name, price = outcome_1.split(" @ ")
+        price, bookmaker = price.split(" ")
         name = name.strip().lower()
         context.user_data['outcomes'] = {}
-        context.user_data['outcomes'][name] = price
-        await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering outcome 2 volgens format: tie 2.9", 
+        context.user_data['outcomes'][name] = price, bookmaker
+        await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering + bookmaker outcome 2 volgens format: tie @ 2.9 bwin.be", 
                     reply_markup=ForceReply(selective=True))
         
         context.user_data["awaiting_outcome_1"] = False
@@ -358,7 +362,8 @@ async def handle_tekst_message(update, context):
     elif context.user_data.get("awaiting_outcome_2"):
         outcome_2 = text
 
-        name, price = outcome_2.split(" ")
+        name, price = outcome_2.split(" @ ")
+        price, bookmaker = price.split(' ')
         name = name.strip().lower()
 
       
@@ -366,10 +371,10 @@ async def handle_tekst_message(update, context):
             await bot.send_message(chat_id=CHAT_ID, text="Outcome value bet niet teruggevonden")
         
         context.user_data["awaiting_outcome_2"] = False
-        context.user_data['outcomes'][name] = price
+        context.user_data['outcomes'][name] = price, bookmaker
 
         if context.user_data.get("awaiting_teams")[1] == 3:
-            await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering outcome 3 volgens format: tie 2.9", 
+            await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering outcome 3 + bookmaker volgens format: uit @ 2.9 pinnacle", 
                     reply_markup=ForceReply(selective=True))
         
             context.user_data["awaiting_outcome_3"] = True
@@ -382,12 +387,13 @@ async def handle_tekst_message(update, context):
         outcome_3 = text
 
        
-        name, price = outcome_3.split(" ")
+        name, price = outcome_3.split(" @ ")
+        price, bookmaker = price.split(' ')
         name = name.strip().lower()
         if not context.user_data.get("outcome_value_bet") in context.user_data['outcomes']:
             await bot.send_message(chat_id=CHAT_ID, text="Outcome value bet niet teruggevonden")
 
-        context.user_data['outcomes'][name] = price
+        context.user_data['outcomes'][name] = price, bookmaker
         context.user_data["awaiting_outcome_3"] = False
 
 
@@ -496,7 +502,6 @@ async def build_bet(update, context):
                                         "outcome_value_bet": None,
                                         "ev": ev,
                                         "market_id": markets,
-                        
                                         "hinge": False,
                                         "net_profit": net_profit,
                                         "stake_val_bet": stakes["stake_val"],
