@@ -23,11 +23,23 @@ def connect_sheet():
 
 # ---------------- GOOGLE SHEETS LOG ----------------
 
-def log_to_sheet(bet=None, league=None, land=None, teams=None, manual_input=False):
+def log_to_sheet(bet=None, manual_input=False):
+ 
+    outcome_lines = "\n".join(
+        f'{data.get("outcome","")} @ {data["odd"]} {bookmaker}'
+        for bookmaker, data in bet["outcomes"].items()
+    )
+
+    prefix = (
+        "========VALUE BET========="
+        if bet["type"] == "valuebet"
+        else "========SURE BET========="
+    )
+
+    fixture_id, market_id = sheet.find(bet["fixture_id"]), sheet.find(bet["market_id"])
     next_row = len(sheet.get_all_values()) + 1
-    
-    if manual_input:
-        row = [
+     
+    row = [
             datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             teams,
             land,
@@ -45,41 +57,40 @@ def log_to_sheet(bet=None, league=None, land=None, teams=None, manual_input=Fals
             bet['bet_placed'],
             "{:.2f}".format(bet["ev"]).replace(".", ","),
         ]
-        
-        return True
 
-    elif not manual_input:
-        row = [
-            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            bet["teamnames"],
-            bet["land"],
-            bet["league"],
-            bet["odd"],
-            "",
-            "",
-            False,
-            "",
-            bet["net_profit"],
-            bet["stake_val"],
-            "",
-            bet["stake_val"],
-            "",
-            bet["ev"],
-            bet["fixture_id"],
-            bet["market_id"],
-            bet["betslip"]
 
-        ]
-   
-        fixture_id, market_id = sheet.find(bet["fixture_id"]), sheet.find(bet["market_id"])
-        print(fixture_id, market_id)
-        
-        if not (fixture_id and market_id):
-            sheet.update(
-                f"A{next_row}:S{next_row}",
-                [row])
-                
-            return True
+    if not (fixture_id and market_id):
+        sheet.update(
+            f"A{next_row}:S{next_row}",
+            [row])
+
+        return f"""
+    {prefix}
+
+    {bet["event"]["teams"]}
+
+    League: {bet["event"]["league"]}
+    Country: {bet["event"]["country"]}
+
+    EV: {bet["stake"]["ev"]:.2f}%
+    Stake: €{bet["stake"]["stake_val"]:.2f}
+
+    Profit: €{bet["stake"]["net_profit"]:.2f}
+
+    Bookmaker:
+    {bet["selection"]["bookmaker"]}
+    @ {bet["selection"]["odd"]}
+
+    ------------------------
+
+    {outcome_lines}
+    
+    {"Betslip":
+    {bet["selection"]["betslip"]} if bet['selection']['betslip'] else ""}
+    """
+
+
+
         
 
 def get_settlements():
