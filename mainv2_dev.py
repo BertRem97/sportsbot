@@ -149,7 +149,6 @@ async def calculate_ev_stakes_wkelly(odd_val_bet,
         ov = float(value_odd / (1 / win_chance) - 1) * 100
         if win_chance >= min_win_chance:
             if ev > 0:
-                  
                 outcome_lines = "\n".join(
                     f'{data.get("outcome","")} @ {data["odd"]} {bookmaker}'
                     for bookmaker, data in data["outcomes"].items()
@@ -162,44 +161,6 @@ async def calculate_ev_stakes_wkelly(odd_val_bet,
                     else "========SURE BET========="
                     )
                 
-
-                keyboard = [
-                    [
-                        InlineKeyboardButton("✅ Ja",callback_data=f"bet_yes"),
-                        InlineKeyboardButton("❌ Nee",callback_data=f"bet_no")
-                    ]
-                ]
-
-                                reply_markup = InlineKeyboardMarkup(keyboard)
-
-                                global decision
-
-                                decision = None
-                                decision_event.clear()
-
-
-                                await bot.send_message(
-                                    chat_id=CHAT_ID,
-                                    text=msg,
-                                    reply_markup=reply_markup
-                                )
-
-
-                                await decision_event.wait()
-                                if decision:
-                                    if log_to_sheet(bet=bet):
-                                        print("✔ Opgeslagen in Google Sheets")
-                                    else:
-                                        print("Fout tijdens het loggen")
-                                
-                                else:
-                                    continue
-
-
-
-
-
-
                 msg = f"""
 
     {prefix}
@@ -224,13 +185,38 @@ async def calculate_ev_stakes_wkelly(odd_val_bet,
     
     {"Betslip":
     {data["selection"]["betslip"]} if bet['selection']['betslip'] else ""}
-    """
-                await bot.send_message(chat_id = CHAT_ID, text=msg)
-                log = logger.log_to_sheet(bet=context.user_data)
-                if log:
-                    await bot.update_message
-                
 
+    """
+                
+                keyboard = [
+                    [
+                        InlineKeyboardButton("✅ Ja",callback_data=f"bet_yes"),
+                        InlineKeyboardButton("❌ Nee",callback_data=f"bet_no")
+                    ]
+                ]
+
+                reply_markup = InlineKeyboardMarkup(keyboard)
+
+                global decision
+
+                decision = None
+                decision_event.clear()
+             
+                await bot.send_message(
+                    chat_id=CHAT_ID,
+                    text=msg,
+                    reply_markup=reply_markup
+                )
+
+                await decision_event.wait()
+                if decision:
+                    if logger.log_to_sheet(bet=context.user_data):
+                        await bot.update.callback_query.message.reply_text(
+                            text = "✔ Opgeslagen in Google Sheets")
+                
+                    else:
+                        await bot.update.callback_query.message.reply_text(
+                            text = "Bet reeds gelogd, log een ander")
 
 # -----------------------------
 # ANALYSE ODDS
