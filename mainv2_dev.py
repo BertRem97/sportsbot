@@ -78,7 +78,8 @@ def hedge_stakes(stake_val, odd, other_odds):
 async def calculate_ev_stakes_wkelly(odd_val_bet,
                              p, hinge,
                              fraction, context, update, other_odds):
-    
+
+
     data = context.user_data['bet']
     implied_odds = None
 
@@ -122,27 +123,113 @@ async def calculate_ev_stakes_wkelly(odd_val_bet,
                                 reply_markup=reply_markup)
             
             context.user_data['bet']["awaiting_teams"][1] = None
+        
             stake_x = hedge_stakes(stake_value, odd_val_bet, other_odds)
+            total_stakes = stake_value + stake_x
+            secured_net_profit = payout - total_stakes
             data['hedge'] = {'odd': other_odds, 'stake': stake_x, 'outcome': str(outcome_hedge),
-                             'bookmaker': bookmaker}
+                             'bookmaker': bookmaker, "secured_profit": secured_net_profit}
+            
+            data['stake']['total_stakes'] = total_stakes
 
         else:
             min_odds, min_stake = calculate_hinge_1X2_after(odd_val_bet, stake_value)
             data['hedge'] = {"min_odd_other_p": min_odds, "min_stake_other_p": min_stake,
                          'outcome': str(outcome_hedge), 'bookmaker': bookmaker}
 
+            net_profit = payout - stake_value
+            data['stake']["possible_profit"] = net_profit
+            data['stake']['total_stakes'] = stake_value
+            data['stake']['stake_val'] = stake_value
+    
 
-    total_stakes = (lambda x: sum(x))(map(float, [i for i in data["stakes"].values() if i is not None]))
-    net_profit = payout - total_stakes
-    data['stake']["net_profit"] = net_profit
-    data['stake']['total_stakes'] = total_stakes
-    data['stake']['stake_val'] = stake_value
-
+    error_msg = "Bet reeds gelogd, log een ander bet"
+    succes_msg = "✔ Opgeslagen in Google Sheets"
     if (win_chance / (1 / value_odd) - 1) * 100 >= min_percentage_ov:
         ov = float(value_odd / (1 / win_chance) - 1) * 100
         if win_chance >= min_win_chance:
             if ev > 0:
-            #logger.log_to_sheet(bet=bet)
+                  
+                outcome_lines = "\n".join(
+                    f'{data.get("outcome","")} @ {data["odd"]} {bookmaker}'
+                    for bookmaker, data in data["outcomes"].items()
+                    )
+
+                prefix = (
+
+                    "========VALUE BET========="
+                    if data["type"] == "valuebet"
+                    else "========SURE BET========="
+                    )
+                
+
+                keyboard = [
+                    [
+                        InlineKeyboardButton("✅ Ja",callback_data=f"bet_yes"),
+                        InlineKeyboardButton("❌ Nee",callback_data=f"bet_no")
+                    ]
+                ]
+
+                                reply_markup = InlineKeyboardMarkup(keyboard)
+
+                                global decision
+
+                                decision = None
+                                decision_event.clear()
+
+
+                                await bot.send_message(
+                                    chat_id=CHAT_ID,
+                                    text=msg,
+                                    reply_markup=reply_markup
+                                )
+
+
+                                await decision_event.wait()
+                                if decision:
+                                    if log_to_sheet(bet=bet):
+                                        print("✔ Opgeslagen in Google Sheets")
+                                    else:
+                                        print("Fout tijdens het loggen")
+                                
+                                else:
+                                    continue
+
+
+
+
+
+
+                msg = f"""
+
+    {prefix}
+
+    {data["event"]["teams"]}
+
+    League: {data["event"]["league"]}
+    Country: {data["event"]["country"]}
+
+    EV: {data["stake"]["ev"]:.2f}%
+    Stake: €{data["stake"]["stake_val"]:.2f}
+
+    Profit: €{data["stake"]["net_profit"]:.2f}
+
+    Bookmaker:
+    {data["selection"]["bookmaker"]}
+    @ {data["selection"]["odd"]}
+
+    ------------------------
+
+    {outcome_lines}
+    
+    {"Betslip":
+    {data["selection"]["betslip"]} if bet['selection']['betslip'] else ""}
+    """
+                await bot.send_message(chat_id = CHAT_ID, text=msg)
+                log = logger.log_to_sheet(bet=context.user_data)
+                if log:
+                    await bot.update_message
+                
 
 
 # -----------------------------
@@ -447,9 +534,6 @@ async def handle_tekst_message(update, context):
 async def build_bet(update, context):
     cmmd = update.message.text
 
-    error_msg = "Bet reeds gelogd, log een ander bet"
-    succes_msg = "✔ Opgeslagen in Google Sheets"
-    
     if cmmd == "/log":
         keyboard = [
             [

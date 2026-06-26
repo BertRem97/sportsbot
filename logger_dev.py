@@ -39,24 +39,43 @@ def log_to_sheet(bet=None, manual_input=False):
     fixture_id, market_id = sheet.find(bet["fixture_id"]), sheet.find(bet["market_id"])
     next_row = len(sheet.get_all_values()) + 1
      
+    event = bet['bet']['event']
+    outcomes = bet['bet']['outcomes']
+    hedge = bet['bet']['outcomes']
+    stake = bet['stake']
+    selection = bet['selection']
+    outcome_data = next(iter(outcomes.items()))
+    outcome_data_1 = str([f"{bookie} >> {data[0]} @ {data[1]}" for bookie, data in outcome_data])
+    outcome_data_2 = str([f"{bookie} >> {data[0]} @ {data[1]}" for bookie, data in next(outcome_data)])
+    hinge_later = f"{hedge['bookmaker']} >> {hedge['outcome']} @ {hedge['min_odd_other_p']}"
+
+    try:
+        outcome_data_3 = str([f"{bookie} >> {data[0]} @ {data[1]}" for bookie, data in next(outcome_data)])
+    except:
+        outcome_data_3 = ""
+
     row = [
             datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            teams,
-            land,
-            league,
-            f"{bet['outcomes'][0]} @ {bet['odds'][0]}",
-            f"{bet['outcomes'][1]} @ {bet['odds'][1]}", 
-            f"{bet['outcomes'][2]} @ {bet['odds'][2]}" if len(bet['outcomes']) == 3 else "",
-            bet["hinge"],
-            "{:.2f}".format(bet['net_profit']).replace(".", ",") if bet['hinge'] else "",
-            "{:.2f}".format(bet['net_profit']).replace(".", ",") if not bet['hinge'] else "",
-            "{:.2f}".format(bet['stake_val_bet']).replace(".", ","),
-            f"{bet['other_p']} @ {bet['min_odd_other_p']} >> {bet['min_stake_other_p']}" 
-            if bet['min_odd_other_p'] else "",
-            "{:.2f}".format(bet['total_stake']).replace(".", ","),
-            bet['bet_placed'],
-            "{:.2f}".format(bet["ev"]).replace(".", ","),
-        ]
+            event['start_event'],
+            event['event_fixture'] if event['event_fixture'] else "",
+            event['market_fixture'] if event['market_fixture'] else "",
+            event['teamnames'],
+            event['tournament'],
+            event['league'],
+            outcome_data_1,
+            outcome_data_2,
+            outcome_data_3,
+            hedge['wanting_hedge'],
+            "{:.2f}".format(stake['secured_profit']).replace(".", ",") if hedge['secured_profit'] else "",
+            "{:.2f}".format(stake['possible_profit']).replace(".", ",") if stake['possible_profit'] else "",
+            "{:.2f}".format(stake['stake_val']).replace(".", ","),
+            hinge_later,
+            "{:.2f}".format(stake['total_stakes']).replace(".", ","),
+            selection['outcome'],
+            "{:.2f}".format(stake['ev']).replace(".", ","),
+            selection['betslip'] if selection['betslip'] else ""
+
+            ]
 
 
     if not (fixture_id and market_id):
