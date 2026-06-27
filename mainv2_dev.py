@@ -137,6 +137,7 @@ async def calculate(update, context):
             await pending['hinge_event'].wait()
             decision = pending['decision']
 
+            data['hedge']['wanting_hedge'] = False
             if decision:
                 data['hedge']['wanting_hedge'] = True
                 data['type'] = 'surebet'

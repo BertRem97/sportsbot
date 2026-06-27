@@ -64,7 +64,7 @@ def log_to_sheet(bet):
         betslip = ""
 
     try:
-        secured_profit = "{:.2f}".format(stake['secured_profit']).replace(".", ",")
+        secured_profit = "{:.2f}".format(hedge['secured_profit']).replace(".", ",")
     
     except:
         secured_profit = ""
@@ -93,7 +93,7 @@ def log_to_sheet(bet):
             outcome_data_3,
             hedge['wanting_hedge'],
             secured_profit,
-            possible_profit,
+            possible_profit if bet['bet']['type'] == 'valuebet' else "",
             "{:.2f}".format(stake['stake_val']).replace(".", ","),
             hinge_later if bet['bet']['type'] == 'valuebet' else "",
             "{:.2f}".format(stake['total_stakes']).replace(".", ","),
