@@ -18,35 +18,73 @@ SCOPES = [
 def connect_sheet():
     creds = Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES)
     client = gspread.authorize(creds)
-    return client.open_by_key(SHEET_ID).sheet1
+    spreadsheet = client.open_by_key(SHEET_ID)
+    worksheet = spreadsheet.get_worksheet(1)
+    return worksheet
 
 
 # ---------------- GOOGLE SHEETS LOG ----------------
 
-def log_to_sheet(bet=None, manual_input=False):
-    fixture_id, market_id = sheet.find(bet["fixture_id"]), sheet.find(bet["market_id"])
+def log_to_sheet(bet):
+    try:
+        fixture_id, market_id = sheet.find(bet['event']["fixture_id"]), sheet.find(bet['event']["market_id"]) 
+
+    except KeyError:
+        fixture_id, market_id = 0, 0
+    
     next_row = len(sheet.get_all_values()) + 1
      
     event = bet['bet']['event']
     outcomes = bet['bet']['outcomes']
-    hedge = bet['bet']['outcomes']
-    stake = bet['stake']
-    selection = bet['selection']
-    outcome_data = next(iter(outcomes.items()))
-    outcome_data_1 = str([f"{bookie} >> {data[0]} @ {data[1]}" for bookie, data in outcome_data])
-    outcome_data_2 = str([f"{bookie} >> {data[0]} @ {data[1]}" for bookie, data in next(outcome_data)])
-    hinge_later = f"{hedge['bookmaker']} >> {hedge['outcome']} @ {hedge['min_odd_other_p']}"
+    hedge = bet['bet']['hedge']
+    stake = bet['bet']['stake']
+    selection = bet['bet']['selection']
+
+    outcomes_iter = iter(outcomes.items())
+    outcome, data = next(outcomes_iter)
+    outcome_data_1 = f"{outcome} >> {data['odd']} @ {data['bookmaker']}"
+    outcome, data = next(outcomes_iter, (None, None))
+    outcome_data_2 = f"{outcome} >> {data['odd']} @ {data['bookmaker']}" if outcome else ""
+    
 
     try:
-        outcome_data_3 = str([f"{bookie} >> {data[0]} @ {data[1]}" for bookie, data in next(outcome_data)])
+        outcome, data = next(outcomes_iter, (None, None))
+        outcome_data_3 = f"{outcome} >> {data['odd']} @ {data['bookmaker']}" if outcome else ""
     except:
         outcome_data_3 = ""
+
+    try:
+       event_fixture = event['event_fixture'] 
+       market_fixture = event['market_fixture']
+       betslip = selection['betslip'] 
+    
+    except:
+        event_fixture = ""
+        market_fixture = ""
+        betslip = ""
+
+    try:
+        secured_profit = "{:.2f}".format(stake['secured_profit']).replace(".", ",")
+    
+    except:
+        secured_profit = ""
+
+    try:
+        possible_profit = "{:.2f}".format(stake['possible_profit']).replace(".", ",")
+    except:
+        possible_profit = ""
+    
+    try: 
+        hinge_later = f"{str(hedge['bookmaker'])} >> Minimal stake @ {str(hedge['outcome'])}: {str(hedge['min_stake_other_p'])} @ {str(hedge['min_odd_other_p'])}" 
+    except:
+        hinge_later = ""
+
 
     row = [
             datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             event['start_event'],
-            event['event_fixture'] if event['event_fixture'] else "",
-            event['market_fixture'] if event['market_fixture'] else "",
+            event_fixture,
+            market_fixture,
             event['teamnames'],
             event['tournament'],
             event['league'],
@@ -54,14 +92,14 @@ def log_to_sheet(bet=None, manual_input=False):
             outcome_data_2,
             outcome_data_3,
             hedge['wanting_hedge'],
-            "{:.2f}".format(stake['secured_profit']).replace(".", ",") if hedge['secured_profit'] else "",
-            "{:.2f}".format(stake['possible_profit']).replace(".", ",") if stake['possible_profit'] else "",
+            secured_profit,
+            possible_profit,
             "{:.2f}".format(stake['stake_val']).replace(".", ","),
-            hinge_later,
+            hinge_later if bet['bet']['type'] == 'valuebet' else "",
             "{:.2f}".format(stake['total_stakes']).replace(".", ","),
             selection['outcome'],
             "{:.2f}".format(stake['ev']).replace(".", ","),
-            selection['betslip'] if selection['betslip'] else ""
+            betslip
 
             ]
 
@@ -122,13 +160,13 @@ def get_settlements():
                 
                 
                 if result == "WIN":
-                    value = "Ja"
+                    value = "WIN"
 
                 elif result == "LOSE":
-                    value = "Nee"
+                    value = "LOSE"
 
                 elif result == "UNDECIDED":
-                    value = "Onbepaald"
+                    value = "UNDECIDED"
 
                 sheet.update_cell(row_idx, settlement_col, value)
                 
@@ -138,5 +176,5 @@ def get_settlements():
 
 
 sheet = connect_sheet()
-bankroll = float(sheet.acell("T2").value.replace(",","."))
+bankroll = float(sheet.acell("U2").value.replace(",","."))
 
