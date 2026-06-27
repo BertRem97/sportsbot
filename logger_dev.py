@@ -24,18 +24,6 @@ def connect_sheet():
 # ---------------- GOOGLE SHEETS LOG ----------------
 
 def log_to_sheet(bet=None, manual_input=False):
- 
-    outcome_lines = "\n".join(
-        f'{data.get("outcome","")} @ {data["odd"]} {bookmaker}'
-        for bookmaker, data in bet["outcomes"].items()
-    )
-
-    prefix = (
-        "========VALUE BET========="
-        if bet["type"] == "valuebet"
-        else "========SURE BET========="
-    )
-
     fixture_id, market_id = sheet.find(bet["fixture_id"]), sheet.find(bet["market_id"])
     next_row = len(sheet.get_all_values()) + 1
      
@@ -77,40 +65,13 @@ def log_to_sheet(bet=None, manual_input=False):
 
             ]
 
-
     if not (fixture_id and market_id):
         sheet.update(
             f"A{next_row}:S{next_row}",
             [row])
 
-        return f"""
-    {prefix}
+        return True 
 
-    {bet["event"]["teams"]}
-
-    League: {bet["event"]["league"]}
-    Country: {bet["event"]["country"]}
-
-    EV: {bet["stake"]["ev"]:.2f}%
-    Stake: €{bet["stake"]["stake_val"]:.2f}
-
-    Profit: €{bet["stake"]["net_profit"]:.2f}
-
-    Bookmaker:
-    {bet["selection"]["bookmaker"]}
-    @ {bet["selection"]["odd"]}
-
-    ------------------------
-
-    {outcome_lines}
-    
-    {"Betslip":
-    {bet["selection"]["betslip"]} if bet['selection']['betslip'] else ""}
-    """
-
-
-
-        
 
 def get_settlements():
     rows = sheet.get_all_values()
