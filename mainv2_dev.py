@@ -17,8 +17,6 @@ from telegram.ext import (
 import asyncio
 import apiwrapper_dev as api
 
-decision = None
-decision_event = asyncio.Event()
 
 def calculate_hinge_1X2_after(odd_val, stake_val):
     total_implied_odds = 0.99
@@ -51,7 +49,8 @@ def hedge_stakes(stake_val, odd, other_odds):
 
 async def calculate(update, context):
     data = context.user_data["bet"]
-    print(data)
+    pending = context.user_data['pending']
+    pending["decision"] = None
     value_team = data['selection']["outcome"]
     data['type'] = None
     outcomes = data['outcomes']
@@ -71,7 +70,7 @@ async def calculate(update, context):
             other_odds.append(odd)
 
         if outcome == value_team:
-            odd_val_bet = v['odd']
+            odd_val_bet = float(v['odd'])
 
     p = float(data['event']["win_chance"])
     hinge = implied_probs(odds)
@@ -96,15 +95,22 @@ async def calculate(update, context):
     payout = float(stake_value * implied_odds) if implied_odds is not None else None
     value_team = data['selection']['outcome']
     value_odd = float(data["selection"]['odd'])
-    win_chance = float(data['selection']['win_chance'])
+    bookie_val = data['selection']['bookmaker']
+    win_chance = float(data['event']['win_chance'])
+    net_profit = payout - stake_value
 
     data['stake']["payout"] = payout
     data['stake']["ev"] = ev
-    data['stake']["ov"] = float(value_odd / (1 / float(data['selection']['win_chance'])) - 1) * 100
+    data['stake']["ov"] = float(value_odd / (1 / win_chance) - 1) * 100
+    data['stake']["possible_profit"] = net_profit
+    data['stake']['total_stakes'] = stake_value
+    data['stake']['stake_val'] = stake_value
+    data['selection']['betslip'] = None
+    
 
-    if context.user_data['bet']["awaiting_teams"][1] == 2:
-        outcome_hedge = [v['outcome'] for _, v in data['outcomes'].items() if v['outcome'] != data['selection']['outcome']]
-        bookmaker = str([k for k, v in data['outcomes'].items() if other_odds in v])
+    if context.user_data['pending']["awaiting_teams"][1] == 2:
+        outcome_hedge = [i for i in data['outcomes'] if i != data['selection']['outcome']]
+        bookmaker = str([v['bookmaker'] for k, v in data['outcomes'].items() if k != value_team])
 
         if hinge:
             keyboard = [
@@ -115,10 +121,19 @@ async def calculate(update, context):
             ]
 
             reply_markup = InlineKeyboardMarkup(keyboard)
-            await bot.send_message(chat_id=CHAT_ID, text="Sure bet mogelijk, wil je hingen?", 
+     
+            pending['hinge_event'].clear()
+            await context.bot.send_message(chat_id=CHAT_ID, text="Sure bet mogelijk, wil je hingen?", 
                                 reply_markup=reply_markup)
-            
-            context.user_data['bet']["awaiting_teams"][1] = None
+    
+            await pending['hinge_event'].wait()
+            decision = pending['decision']
+
+            if decision:
+                data['hedge']['wanting_hedge'] = True
+                data['type'] = 'surebet'
+
+            context.user_data['pending']["awaiting_teams"][1] = None
         
             stake_x = hedge_stakes(stake_value, odd_val_bet, other_odds)
             total_stakes = stake_value + stake_x
@@ -133,17 +148,13 @@ async def calculate(update, context):
             data['hedge'] = {"min_odd_other_p": min_odds, "min_stake_other_p": min_stake,
                          'outcome': str(outcome_hedge), 'bookmaker': bookmaker}
 
-            net_profit = payout - stake_value
-            data['stake']["possible_profit"] = net_profit
-            data['stake']['total_stakes'] = stake_value
-            data['stake']['stake_val'] = stake_value
-    
-
+        
     if (win_chance / (1 / value_odd) - 1) * 100 >= min_percentage_ov:
         ov = float(value_odd / (1 / win_chance) - 1) * 100
         if win_chance >= min_win_chance:
             if ev > 0:
-                data['type'] = "valuebet"
+                if data['type'] != 'surebet':
+                    data['type'] = "valuebet"
 
 
     outcome_lines = "\n".join(
@@ -153,36 +164,45 @@ async def calculate(update, context):
     prefix = (
         "========VALUE BET========="
         if data["type"] == "valuebet"
-        else data['type'] == "surebet" "========SURE BET========="
+        else "========SURE BET=========" if data['type'] == "surebet"
+        else ""
      
         )
     
-    print(data)
+    profit = (
+        f"Possible profit: €{data['stake']['possible_profit']:.2f}"
+        if data['type'] == "valuebet" else 
+        f"Secured profit: €{data['hedge']['secured_profit']:.2f}"
+        if data['type'] == "surebet"
+        else "" 
+        )
+              
+    pprint(data)
 
     msg = f"""
 
 {prefix}
 
-{data["event"]["teams"]}
+{data["event"]["teamnames"]}
 
 League: {data["event"]["league"]}
-Country: {data["event"]["country"]}
+Tournament: {data["event"]["tournament"]}
 
 EV: {data["stake"]["ev"]:.2f}%
-Stake: €{data["stake"]["stake_val"]:.2f}
-
-Profit: €{data["stake"]["net_profit"]:.2f}
+Probability: {win_chance:.2f}%
+Over value: {ov:.2f}%
+"Stake value bet: €{data["stake"]["stake_val"]:.2f}"
+{f"Stake hedge bet: €{data['hedge']['stake']:.2f}" if data['type'] == "surebet" else ""} 
 
 Bookmaker:
-{data["selection"]["bookmaker"]}
-@ {data["selection"]["odd"]}
-
+{bookie_val} @ {data["selection"]["odd"]}
+{profit}
 ------------------------
 
-{outcome_lines}
+{f"Betslip: {data['selection']['betslip']}" 
+ if data['selection']['betslip'] else ""}
 
-{"Betslip":
-{data["selection"]["betslip"]} if bet['selection']['betslip'] else ""}
+
 
 """
     
@@ -196,25 +216,25 @@ Bookmaker:
 
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        global decision
+    
+        pending['decision_event'].clear()
 
-        decision = None
-        decision_event.clear()
-        
-        await bot.send_message(
+        await context.bot.send_message(
             chat_id=CHAT_ID,
             text=msg,
             reply_markup=reply_markup
         )
 
-        await decision_event.wait()
+        await pending['decision_event'].wait()
+        decision = pending['decision']
+
         if decision:
             if logger.log_to_sheet(bet=context.user_data):
-                await bot.update.callback_query.message.reply_text(
+                await context.bot.send_message(CHAT_ID,
                     text = "✔ Opgeslagen in Google Sheets")
         
             else:
-                await bot.update.callback_query.message.reply_text(
+                await context.bot.send_message(CHAT_ID,
                     text = "Bet reeds gelogd, log een ander")
 
 # -----------------------------
@@ -329,64 +349,61 @@ def analyse_market_data(market_map):
 
 
 async def handle_button(update, context):
-
-    global decision
     query = update.callback_query
-    tekst = query.message.text
-
+    print(query.data)
+  
     await query.answer()
-    context.user_data["pending"] = {}
-    if tekst == "Voer het aantal outcomes in (2 of 3)":
+  
+    if query.data == "outcomes_3":
+        context.user_data["pending"]["awaiting_teams"] = [True, 3]
         await context.bot.send_message(chat_id=CHAT_ID, 
-                                   text="Voer de teamnames in volgens volgend formaat: 'Belgie - Iran'",
-                                   reply_markup=ForceReply(selective=True))
+                                    text="Voer de teamnames in volgens volgend formaat: 'Belgie - Iran'",
+                                    reply_markup=ForceReply(selective=True))
         
-        if query.data == "outcomes_3":
-            context.user_data["pending"]["awaiting_teams"] = [True, 3]
-            
-        elif query.data == "outcomes_2":
-            context.user_data["pending"]["awaiting_teams"] = [True, 2]
+    elif query.data == "outcomes_2":
+        context.user_data["pending"]["awaiting_teams"] = [True, 2]
+        await context.bot.send_message(chat_id=CHAT_ID, 
+                                    text="Voer de teamnames in volgens volgend formaat: 'Belgie - Iran'",
+                                    reply_markup=ForceReply(selective=True))
 
     if query.data == "bet_yes":
-
-        decision = True
-
+        context.user_data['pending']['decision'] = True
+        context.user_data['pending']['decision_event'].set()
         await query.message.reply_text(
             "✅ Bet bevestigd"
         )
 
     elif query.data == "bet_no":
-
-        decision = False
-
+        context.user_data['pending']['decision'] = False
+        context.user_data['pending']['decision_event'].set()
         await query.message.reply_text(
             "❌ Bet geweigerd"
         )
 
-    if tekst == "Sure bet mogelijk, wil je hingen?":
-        if query.data == "hinge_yes":
-            context.user_data['bet']['hedge']['wanting_hedge'] = True
-            context.user_data['bet']['type'] = 'surebet'
-            
-    decision_event.set()
+    if query.data == "hinge_yes":
+        context.user_data['pending']['decision'] = True
+        context.user_data['pending']['hinge_event'].set()
+        await query.message.reply_text(
+            "✅ Hinge bevestigd"
+        )
 
+    elif query.data == "hinge_no":
+        context.user_data['pending']['decision'] = False
+        context.user_data['pending']['hinge_event'].set()
+        await query.message.reply_text(
+            "❌ Hinge geweigerd"
+        )
 
+        
 async def handle_tekst_message(update, context):
-    text = update.message.text 
-    data = context.user_data["bet"] = {}
-    data['event'] = {}
-    data['outcomes'] = {}
-    data['stake'] = {}
-    data['hedge'] = {}
-    data['selection'] = {}
-    data['telegram_message'] = {}
-    pending = context.user_data['pending']
 
+    text = update.message.text 
+    pending = context.user_data['pending']
     if pending.get("awaiting_teams")[0]:
         teams = text
         context.user_data['bet']["event"]["teamnames"] = teams
 
-        await bot.send_message(chat_id=CHAT_ID, text="Voer de league in", 
+        await context.bot.send_message(chat_id=CHAT_ID, text="Voer de league in", 
                      reply_markup=ForceReply(selective=True))
         
         pending["awaiting_teams"][0] = False
@@ -396,7 +413,7 @@ async def handle_tekst_message(update, context):
         league = text
         context.user_data['bet']["event"]["league"] = league
 
-        await bot.send_message(chat_id=CHAT_ID, text="Voer het toernooi of het land in", 
+        await context.bot.send_message(chat_id=CHAT_ID, text="Voer het toernooi of het land in", 
                      reply_markup=ForceReply(selective=True))
         
         pending["awaiting_league"] = False
@@ -407,20 +424,19 @@ async def handle_tekst_message(update, context):
         land = text
         context.user_data['bet']['event']["tournament"] = land
 
-        await bot.send_message(chat_id=CHAT_ID, text="Op welke outcome heb je een value bet?", 
+        await context.bot.send_message(chat_id=CHAT_ID, text="Op welke outcome heb je een value bet?", 
                      reply_markup=ForceReply(selective=True))
         
         pending["awaiting_tournament"] = False
         pending["awaiting_outcome_v"] = True
     
     elif pending.get("awaiting_outcome_v"):
-        print('YES')
         value_team = text.lower()
         context.user_data['bet']['selection']["outcome"] = value_team
         print(value_team)
         print(context.user_data)
 
-        await bot.send_message(chat_id=CHAT_ID, text="Voer de startdatum en tijdstip in volgens format: 07/10/2025 8:00", 
+        await context.bot.send_message(chat_id=CHAT_ID, text="Voer de startdatum en tijdstip in volgens format: 07/10/2025 8:00", 
                      reply_markup=ForceReply(selective=True))
         
     
@@ -432,7 +448,7 @@ async def handle_tekst_message(update, context):
         start_date = text
         context.user_data['bet']['event']['start_event'] = start_date
 
-        await bot.send_message(chat_id=CHAT_ID, text="Wat is de ware kans dat het team wint bv'%30?", 
+        await context.bot.send_message(chat_id=CHAT_ID, text="Wat is de ware kans dat het team wint bv'%30?", 
                      reply_markup=ForceReply(selective=True))
 
 
@@ -443,7 +459,7 @@ async def handle_tekst_message(update, context):
         true_prob = text
         context.user_data['bet']['event']["win_chance"] = true_prob
 
-        await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering + bookmaker outcome 1 volgens format: thuis @ 2.8 unibet", 
+        await context.bot.send_message(chat_id=CHAT_ID, text="Naam en quotering + bookmaker outcome 1 volgens format: thuis @ 2.8 unibet", 
                      reply_markup=ForceReply(selective=True))
         
         pending["awaiting_true_prob"] = False
@@ -460,7 +476,11 @@ async def handle_tekst_message(update, context):
         context.user_data['bet']['outcomes'][name] = {'bookmaker': bookmaker,
                                                       'odd': price}
         
-        await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering + bookmaker outcome 2 volgens format: tie @ 2.9 bwin.be", 
+        if name == context.user_data['bet']['selection']["outcome"]:
+            context.user_data['bet']['selection']['odd'] = price
+            context.user_data['bet']['selection']['bookmaker'] = bookmaker
+        
+        await context.bot.send_message(chat_id=CHAT_ID, text="Naam en quotering + bookmaker outcome 2 volgens format: tie @ 2.9 bwin.be", 
                     reply_markup=ForceReply(selective=True))
         
         pending["awaiting_outcome_1"] = False
@@ -474,48 +494,74 @@ async def handle_tekst_message(update, context):
         price, bookmaker = price.split(' ')
         name = name.strip().lower()
         data = price, bookmaker
-      
-        for _, v in context.user_data['bet']['outcomes'].items():
-            for outcome in v.values():
-                if not context.user_data['bet'].get("outcome_value_bet") in outcome:
-                    await bot.send_message(chat_id=CHAT_ID, text="Outcome value bet niet teruggevonden")
-        
+        value_team = context.user_data['bet']['selection']["outcome"]
+
         pending["awaiting_outcome_2"] = False
         context.user_data['bet']['outcomes'][name] = {'bookmaker': bookmaker,
                                                       'odd': price}
-
+        
+        list_outcomes = [outcome for outcome in context.user_data['bet']['outcomes'].keys()]
+        if not value_team in list_outcomes:
+            await context.bot.send_message(chat_id=CHAT_ID, text="Outcome value bet niet teruggevonden")
+        
+        if name == context.user_data['bet']['selection']["outcome"]:
+            context.user_data['bet']['selection']['odd'] = price
+            context.user_data['bet']['selection']['bookmaker'] = bookmaker
+        
         if pending.get("awaiting_teams")[1] == 3:
-            await bot.send_message(chat_id=CHAT_ID, text="Naam en quotering outcome 3 + bookmaker volgens format: uit @ 2.9 pinnacle", 
+            await context.bot.send_message(chat_id=CHAT_ID, text="Naam en quotering outcome 3 + bookmaker volgens format: uit @ 2.9 pinnacle", 
                     reply_markup=ForceReply(selective=True))
         
             pending["awaiting_outcome_3"] = True
 
-        else:  
-            await calculate(update, context)
+        else:
+            print(f"DATA: {context.user_data['bet']}")
+            context.application.create_task(
+                calculate(update, context)
+            )
         
     
     elif pending.get("awaiting_outcome_3"):
         outcome_3 = text
         name, price = outcome_3.split(" @ ")
         price, bookmaker = price.split(' ')
-        data = price, bookmaker
         name = name.strip().lower()
-        for _, v in context.user_data['bet']['outcomes'].items():
-            for outcome in v.values():
-                if not context.user_data['bet'].get("outcome_value_bet") in outcome:
-                    await bot.send_message(chat_id=CHAT_ID, text="Outcome value bet niet teruggevonden")
+        value_team = context.user_data['bet']['selection']["outcome"]
 
         context.user_data['bet']['outcomes'][name] = {'bookmaker': bookmaker,
                                                       'odd': price}
         
+        list_outcomes = [outcome for outcome in context.user_data['bet']['outcomes'].keys()]
+        if not value_team in list_outcomes:
+            await context.bot.send_message(chat_id=CHAT_ID, text="Outcome value bet niet teruggevonden")    
+               
+        if name == context.user_data['bet']['selection']["outcome"]:
+            context.user_data['bet']['selection']['odd'] = price
+            context.user_data['bet']['selection']['bookmaker'] = bookmaker
+
         pending["awaiting_outcome_3"] = False
-        await calculate(update, context)
+        context.application.create_task(
+                calculate(update, context)
+        )
 
 
 async def build_bet(update, context):
     cmmd = update.message.text
 
     if cmmd == "/log":
+        context.user_data["bet"] = {}
+        data = context.user_data["bet"]
+        data['event'] = {}
+        data['outcomes'] = {}
+        data['stake'] = {}
+        data['hedge'] = {}
+        data['selection'] = {}
+        context.user_data['pending'] = {
+            "decision": None,
+            "decision_event": asyncio.Event(),
+            "hinge_event": asyncio.Event()
+        }
+
         keyboard = [
             [
                 InlineKeyboardButton(text="2", callback_data="outcomes_2"),
@@ -524,144 +570,13 @@ async def build_bet(update, context):
         ]
 
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await bot.send_message(chat_id=CHAT_ID, text="Voer het aantal outcomes in (2 of 3)", 
+        await context.bot.send_message(chat_id=CHAT_ID, text="Voer het aantal outcomes in (2 of 3)", 
                      reply_markup=reply_markup)
         
     
     elif cmmd == "/run":
-        logger.get_settlements
-
-        tournaments = api.get_tournaments()[:100]
-        print(f"{len(tournaments)} competities gevonden")
-   
-        available = api.get_available_tournaments(
-            tournaments,
-            BOOKMAKERS[0])
-
-        print(f"{len(available)} Beschikbare competities bij {BOOKMAKERS[0]}\n")
-
-        for k,v in available.items():
-            for fixture in v:
-
-                print(fixture["tournamentId"],"-",fixture["categoryName"],
-                    "-",fixture["tournamentName"])
-            
-                print(
-                    "Aantal wedstrijden:",
-                    len(available))
-
-                teamnames = f"{fixture['participant1Name']} - {fixture['participant2Name']}"
-                league = fixture["statusName"]
-                tournament = fixture["tournamentSlug"]
-                land = fixture["categoryName"]
-                fixtureid = fixture["fixtureId"]
-
-                print(
-                    "\n",
-                    fixture["participant1Name"],
-                    "-",
-                    fixture["participant2Name"]
-                )
-
-                market_map = api.compare_bookmakers_for_fixture(fixture)
-
-                results = analyse_market_data(market_map)
-
-                for markets, data in results.items():
-                    for outcomes in data:
-                        implied_odd = float(1 / outcomes["max_odds"])
-                        avg_chance_win = outcomes["avg_chance_win"]
-                        bookmaker = outcomes["bookmaker"]
-
-                        other_odds = {x["bookmaker"]: x["price"] for x in outcomes["all_prices"] if x['bookmaker'] != outcomes["bookmaker"]}
-                        odds_text = "\n".join(
-                            f"{bookmaker} @ {price}"
-                            for bookmaker, price in other_odds.items()
-    )
-                        betslip = next(
-                            (
-                                i["betslip"]
-                                for i in outcomes["all_prices"]
-                                if i["bookmaker"] == "bwin.be"
-                            ),
-                            None,
-    )
-                        max_odd = outcomes["max_odds"]
-                        win_chance = avg_chance_win * 100
-
-                        if (avg_chance_win / (1 / max_odd) - 1) * 100 >= min_percentage_ov:
-                            ov = float(max_odd / (1 / avg_chance_win) - 1) * 100
-                            if win_chance >= min_win_chance:
-                                stakes, ev, payout = calculate_ev_stakes_wkelly(odd=max_odd, p=win_chance)
-                                stake_bet = round(stakes['stake_val'], 2)
-                                payout = round(payout, 2)
-                                net_profit = payout - stake_bet
-
-                                ev = round(ev, 2)
-                                if ev > 0:
-                                    bet = {
-                                        "start_event": None,
-                                        "odd": max_odd,
-                                        "outcome_value_bet": None,
-                                        "ev": ev,
-                                        "market_id": markets,
-                                        "hinge": False,
-                                        "net_profit": net_profit,
-                                        "stake_val_bet": stakes["stake_val"],
-                                        "total_stake": stakes["stake_val"],
-                                        "min_odd_other_p": None,
-                                        "min_stake_other_p": None,
-                                        "other_p": None,
-                                        "teamnames": teamnames,
-                                        "fixture_id": fixtureid,
-                                        "land": land,
-                                        "tournament": tournament,
-                                        "league": league,
-                                        "betslip": betslip,
-                                        "win_chance": win_chance,
-                                        "ov": ov,
-                                        "bookmaker": f"{bookmaker} @ {max_odd}",
-                                        "other_odds": odds_text,
-                                        "outcomes": {x["bookmaker"]: x['price'] for x in outcomes["all_prices"]},
-                                        "stakes": {"stake_val": stake_bet, "stake_x": None},
-
-
-                                        } 
-                                    
-                                    keyboard = [
-                                        [
-                                            InlineKeyboardButton(
-                                                "✅ Ja",
-                                                callback_data=f"bet_yes"
-                                            ),
-                                            InlineKeyboardButton(
-                                                "❌ Nee",
-                                                callback_data=f"bet_no"
-                                            )
-                                        ]
-                                    ]
-
-                                    reply_markup = InlineKeyboardMarkup(keyboard)
-
-                                    global decision
-
-                                    decision = None
-                                    decision_event.clear()
-
-
-                                    await bot.send_message(
-                                        chat_id=CHAT_ID,
-                                        text=msg,
-                                        reply_markup=reply_markup
-                                    )
-
-                                    await decision_event.wait()
-                                    if decision:
-                                        log_data(bet=bet, type="VALUE")
-                                 
-                                    else:
-                                        continue
-
+        pass
+        
         
 # -----------------------------
 # MAIN
