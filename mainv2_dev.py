@@ -122,6 +122,14 @@ async def calculate(update, context):
 
             reply_markup = InlineKeyboardMarkup(keyboard)
      
+            stake_x = hedge_stakes(stake_value, odd_val_bet, other_odds)
+            total_stakes = stake_value + stake_x
+            secured_net_profit = payout - total_stakes
+            data['hedge'] = {'odd': other_odds, 'stake': stake_x, 'outcome': str(outcome_hedge),
+                             'bookmaker': bookmaker, "secured_profit": secured_net_profit}
+            
+            data['stake']['total_stakes'] = total_stakes
+
             pending['hinge_event'].clear()
             await context.bot.send_message(chat_id=CHAT_ID, text="Sure bet mogelijk, wil je hingen?", 
                                 reply_markup=reply_markup)
@@ -134,14 +142,6 @@ async def calculate(update, context):
                 data['type'] = 'surebet'
 
             context.user_data['pending']["awaiting_teams"][1] = None
-        
-            stake_x = hedge_stakes(stake_value, odd_val_bet, other_odds)
-            total_stakes = stake_value + stake_x
-            secured_net_profit = payout - total_stakes
-            data['hedge'] = {'odd': other_odds, 'stake': stake_x, 'outcome': str(outcome_hedge),
-                             'bookmaker': bookmaker, "secured_profit": secured_net_profit}
-            
-            data['stake']['total_stakes'] = total_stakes
 
         else:
             min_odds, min_stake = calculate_hinge_1X2_after(odd_val_bet, stake_value)
