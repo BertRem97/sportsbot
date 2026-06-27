@@ -42,14 +42,14 @@ def log_to_sheet(bet):
 
     outcomes_iter = iter(outcomes.items())
     outcome, data = next(outcomes_iter)
-    outcome_data_1 = f"{outcome} >> {data['odd']} @ {data['bookmaker']}"
+    outcome_data_1 = f"{outcome if outcome else ""} >> {data['odd']} @ {data['bookmaker']}"
     outcome, data = next(outcomes_iter, (None, None))
-    outcome_data_2 = f"{outcome} >> {data['odd']} @ {data['bookmaker']}" if outcome else ""
+    outcome_data_2 = f"{outcome if outcome else ""} >> {data['odd']} @ {data['bookmaker']}" if outcome else ""
     
 
     try:
         outcome, data = next(outcomes_iter, (None, None))
-        outcome_data_3 = f"{outcome} >> {data['odd']} @ {data['bookmaker']}" if outcome else ""
+        outcome_data_3 = f"{outcome if outcome else ""} >> {data['odd']} @ {data['bookmaker']}" if outcome else ""
     except:
         outcome_data_3 = ""
 

@@ -8,48 +8,17 @@ from config import ODDSPAPI_KEYS
 from config import BOOKMAKERS, USED_BOOKMAKERS
 from config import TELEGRAM_TOKEN, CHAT_ID
 from logger import * 
-
+from mainv2_dev import *
 import subprocess
-import apiwrapper_dev as api
+import asyncio
+
 
 BASE_URL = "https://api.oddspapi.io"
 LAST_REQUEST = 0
-
+CURRENT_KEY = 0
 # -----------------------------
 # CONFIG
 # -----------------------------
-
-def rotate_ip():
-
-    print("VPN IP roteren...")
-    subprocess.run(
-        ["bash", "/home/pi/services/sportsbot/rotate_vpn_on_call.sh"],
-        check=True
-    )
-
-    print("Wachten op verbinding...")
-
-    while True:
-
-        try:
-
-            response = requests.get(
-                BASE_URL,
-                timeout=5
-            )
-
-            # server antwoordt = internet terug
-            if response.status_code < 500:
-
-                print("Verbinding hersteld!")
-                return True
-
-        except requests.exceptions.RequestException:
-
-            pass
-
-        time.sleep(2)
-
     
 def get_next_key():
 
@@ -139,17 +108,14 @@ def api_get(endpoint, params):
     LAST_REQUEST = time.time()
 
     if response.status_code == 403:
-
         print("403 ontvangen -> IP rotatie")
-
+        
         if rotate_ip():
-            # opnieuw proberen met nieuwe IP
             response = requests.get(
                 BASE_URL + endpoint,
                 params=params
             )
-            print(response)
-            return response
+            return response.json()
 
     response.raise_for_status()
 

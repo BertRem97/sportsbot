@@ -16,7 +16,34 @@ from telegram.ext import (
 )
 import asyncio
 import apiwrapper_dev as api
+import subprocess
+import requests
+import time
 
+
+def rotate_ip():
+    emsg = "VPN IP roteren... \n Wachten op verbinding..."
+    subprocess.run(
+        ["bash", "/home/pi/services/sportsbot/rotate_vpn_on_call.sh"],
+        check=True
+    )
+
+    bot.send_message(CHAT_ID, text=emsg)
+    while True:
+        try:
+            response = requests.get(
+                BASE_URL,
+                timeout=5
+            )
+            if response.status_code < 500:
+                bot.send_message(CHAT_ID, text="Verbinding hersteld!")
+                
+                return True
+            
+        except requests.exceptions.RequestException:
+            pass
+
+        time.sleep(2)
 
 def calculate_hinge_1X2_after(odd_val, stake_val):
     total_implied_odds = 0.99
@@ -48,7 +75,7 @@ def hedge_stakes(stake_val, odd, other_odds):
 
 
 async def calculate(update, context, bet=None):
-    
+
     pprint(bet)
     if bet is None:
         data = context.user_data["bet"]
@@ -584,52 +611,43 @@ async def build_bet(update, context):
         
     
     elif cmmd == "/run":
+        await context.bot.send_message(chat_id=CHAT_ID, text="Aan het scannen voor opportuniteiten....")
+        
         bet = {}
-        bet = bet["bet"]
+        bet["bet"] = bet
         bet['event'] = {}
         bet['outcomes'] = {}
         bet['stake'] = {}
         bet['hedge'] = {}
         bet['selection'] = {}
-        tournaments = api.get_tournaments()[:100]
+        tournaments = api.get_tournaments()[:50]
 
-    print(
-        f"{len(tournaments)} competities gevonden"
-    )
-   
     available = api.get_available_tournaments(
         tournaments,
         BOOKMAKERS[0]
     )
 
-    print(f"{len(available)} Beschikbare competities bij {BOOKMAKERS[0]}\n")
+    availability_msg = (f"{len(available)} Beschikbare competities bij {BOOKMAKERS[0]}\n")
+    await context.bot.send_message(chat_id=CHAT_ID, text=availability_msg)
 
     for k,v in available.items():
         for fixture in v:
-
-            print(fixture["tournamentId"],"-",fixture["categoryName"],
-                "-",fixture["tournamentName"]
-            )
-        
-            print(
-                "Aantal wedstrijden:",
+            available_matches_msg = ("Aantal wedstrijden:",
                 len(available)
             )
 
-           
+            available_msg = f"Tournooi: {fixture['tournamentId']} - {fixture['categoryName']} - \
+            {fixture['tournamentName'] + available_matches_msg}"
+            
+            await context.bot.send_message(chat_id=CHAT_ID, text=available_msg)
+
+        
             teamnames = f"{fixture['participant1Name']} - {fixture['participant2Name']}"
             league = fixture["statusName"]
             tournament = fixture["tournamentSlug"]
             land = fixture["categoryName"]
             fixtureid = fixture["fixtureId"]
             start_time = fixture['startTime']
-
-            print(
-                "\n",
-                fixture["participant1Name"],
-                "-",
-                fixture["participant2Name"]
-                )
 
             market_map = api.compare_bookmakers_for_fixture(fixture)
             results = analyse_market_data(market_map)
@@ -656,7 +674,7 @@ async def build_bet(update, context):
                     event = bet['event'] 
                     outcomes_data = bet['outcomes'] 
                     selection = bet['selection'] 
-                    'valuebet' = bet['type'] 
+                    bet['type'] = 'valuebet'
 
                     event['league'] = league
                     event['start_event'] = start_time
@@ -682,6 +700,7 @@ bot = Bot(token=TELEGRAM_TOKEN)
 application = (Application.builder().token(TELEGRAM_TOKEN).build())
 
 CURRENT_KEY = 0
+BASE_URL = "https://api.oddspapi.io"
 async def main():
     pass
     #logger.get_settlements()
