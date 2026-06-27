@@ -47,8 +47,15 @@ def hedge_stakes(stake_val, odd, other_odds):
     return payout / float(list(map(float, other_odds))[0])
 
 
-async def calculate(update, context):
-    data = context.user_data["bet"]
+async def calculate(update, context, bet=None):
+    
+    pprint(bet)
+    if bet is None:
+        data = context.user_data["bet"]
+
+    elif bet:
+        data = bet
+
     pending = context.user_data['pending']
     pending["decision"] = None
     value_team = data['selection']["outcome"]
@@ -59,6 +66,7 @@ async def calculate(update, context):
     other_odds = []
     odds = []
     odd_val_bet = 0
+
 
     for k, v in outcomes.items():
         outcome = k
@@ -614,6 +622,7 @@ async def build_bet(update, context):
             tournament = fixture["tournamentSlug"]
             land = fixture["categoryName"]
             fixtureid = fixture["fixtureId"]
+            start_time = fixture['startTime']
 
             print(
                 "\n",
@@ -647,11 +656,10 @@ async def build_bet(update, context):
                     event = bet['event'] 
                     outcomes_data = bet['outcomes'] 
                     selection = bet['selection'] 
-                    stake = bet['stake'] 
                     'valuebet' = bet['type'] 
 
                     event['league'] = league
-                    event['start_event'] = start_event
+                    event['start_event'] = start_time
                     event['teamnames'] = teamnames
                     event['tournament'] = tournament + land
                     event['win_chance'] = avg_chance_win
@@ -662,7 +670,8 @@ async def build_bet(update, context):
                     selection['odd'] = outcomes['max_odds']
                     selection['market_id'] = 'outcome_id'
                     selection['fixture_id'] = fixtureid
-                                
+     
+                    calculate(bet=bet) 
                     print('-------------------------')
                     pprint(outcomes)
                                 
