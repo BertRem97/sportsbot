@@ -576,9 +576,96 @@ async def build_bet(update, context):
         
     
     elif cmmd == "/run":
-        pass
+        bet = {}
+        bet = bet["bet"]
+        bet['event'] = {}
+        bet['outcomes'] = {}
+        bet['stake'] = {}
+        bet['hedge'] = {}
+        bet['selection'] = {}
+        tournaments = api.get_tournaments()[:100]
+
+    print(
+        f"{len(tournaments)} competities gevonden"
+    )
+   
+    available = api.get_available_tournaments(
+        tournaments,
+        BOOKMAKERS[0]
+    )
+
+    print(f"{len(available)} Beschikbare competities bij {BOOKMAKERS[0]}\n")
+
+    for k,v in available.items():
+        for fixture in v:
+
+            print(fixture["tournamentId"],"-",fixture["categoryName"],
+                "-",fixture["tournamentName"]
+            )
         
-        
+            print(
+                "Aantal wedstrijden:",
+                len(available)
+            )
+
+           
+            teamnames = f"{fixture['participant1Name']} - {fixture['participant2Name']}"
+            league = fixture["statusName"]
+            tournament = fixture["tournamentSlug"]
+            land = fixture["categoryName"]
+            fixtureid = fixture["fixtureId"]
+
+            print(
+                "\n",
+                fixture["participant1Name"],
+                "-",
+                fixture["participant2Name"]
+                )
+
+            market_map = api.compare_bookmakers_for_fixture(fixture)
+            results = analyse_market_data(market_map)
+
+            for markets, data in results.items():
+                for outcomes in data:
+                    implied_odd = float(1 / outcomes["max_odds"])
+                    avg_chance_win = outcomes["avg_chance_win"]
+                    bookmaker = outcomes["bookmaker"]
+
+                    other_odds = {x["bookmaker"]: x["price"] for x in outcomes["all_prices"] if x['bookmaker'] != outcomes["bookmaker"]}
+                    odds_text = "\n".join(
+                        f"{bookmaker} @ {price}"
+                        for bookmaker, price in other_odds.items()
+                    )
+                    betslip = next(
+                        (
+                            i["betslip"]
+                            for i in outcomes["all_prices"]
+                            if i["bookmaker"] == "bwin.be"
+                        ),
+                        None,
+                    )
+                    event = bet['event'] 
+                    outcomes_data = bet['outcomes'] 
+                    selection = bet['selection'] 
+                    stake = bet['stake'] 
+                    'valuebet' = bet['type'] 
+
+                    event['league'] = league
+                    event['start_event'] = start_event
+                    event['teamnames'] = teamnames
+                    event['tournament'] = tournament + land
+                    event['win_chance'] = avg_chance_win
+                    outcomes_data = {outcomes_data[None]: {'bookmaker': i['bookmaker'], 'odd': i['odd']} 
+                                     for i in outcomes['all_prices']}
+                    selection['betslip'] = betslip
+                    selection['bookmaker'] = outcomes['bookmaker']
+                    selection['odd'] = outcomes['max_odds']
+                    selection['market_id'] = 'outcome_id'
+                    selection['fixture_id'] = fixtureid
+                                
+                    print('-------------------------')
+                    pprint(outcomes)
+                                
 # -----------------------------
 # MAIN
 # -----------------------------
