@@ -553,9 +553,10 @@ async def main():
 )
                     max_odd = outcomes["max_odds"]
                     win_chance = avg_chance_win * 100
+                    ov = float(max_odd / (1 / avg_chance_win) - 1) * 100
+                    print(f"OV: {ov}")
 
                     if (avg_chance_win / (1 / max_odd) - 1) * 100 >= min_percentage_ov:
-                        ov = float(max_odd / (1 / avg_chance_win) - 1) * 100
                         if win_chance >= min_win_chance:
                             stakes, ev, payout = calculate_ev_stakes_wkelly(odd=max_odd, p=win_chance)
                             stake_bet = round(stakes['stake_val'], 2)
