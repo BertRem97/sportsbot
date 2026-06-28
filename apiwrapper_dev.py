@@ -3,7 +3,6 @@ import requests
 import time
 from pprint import pprint
 from collections import defaultdict
-import statistics
 from config import ODDSPAPI_KEYS
 from config import BOOKMAKERS, USED_BOOKMAKERS
 from config import TELEGRAM_TOKEN, CHAT_ID
@@ -11,6 +10,9 @@ from logger import *
 from mainv2_dev import *
 import subprocess
 import asyncio
+import subprocess
+import requests
+import time
 
 
 BASE_URL = "https://api.oddspapi.io"
@@ -19,7 +21,29 @@ CURRENT_KEY = 0
 # -----------------------------
 # CONFIG
 # -----------------------------
-    
+
+
+def rotate_ip():
+    subprocess.run(
+        ["bash", "/home/pi/services/sportsbot/rotate_vpn_on_call.sh"],
+        check=True
+    )
+
+    while True:
+        try:
+            response = requests.get(
+                BASE_URL,
+                timeout=5
+            )
+            if response.status_code < 500:  
+                return True
+            
+        except requests.exceptions.RequestException:
+            pass
+
+    time.sleep(2) 
+
+
 def get_next_key():
 
     global CURRENT_KEY

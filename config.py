@@ -1,14 +1,13 @@
-ODDSPAPI_KEYS = ["572bfed2-72dc-478d-b533-612351082777", "40f80fc7-2b95-49b6-95ec-8ab0572df878",
-                 "4c5877e7-9606-45e5-ac34-ef7e31c12642", "e14ef489-3b75-4989-ac50-7178ea0c611b",
-                 "c0cb97e1-a3b1-4561-bb75-3abb2b7f276e", "f77614f8-850c-481c-afe9-30421f4cd8b7",
-                 "7f7c505f-0348-4ef8-8a47-9e5c37158bd5", "cd81185b-d640-4937-926b-14322ce77753",
-                 "35b38755-05c6-4dc1-b103-bea481cc67ee", "8fa892eb-8cb4-44a8-8a2c-d14feacaeac9",
+ODDSPAPI_KEYS = [
+                 
+                 
+                 "65fe1100-27a4-4e85-b7d8-74614ec80acb",
                  "1663ab4d-a925-46d4-a012-0df10475935d", "c3b75cc5-82a8-40b6-bd82-3db06d692103",
                  "270019f9-a049-470b-af1a-dc02980ee57d", "3e306d51-a8b9-43af-9688-401a727fd5fd",
                  "2e5ce61c-bdd8-4789-93c8-e967ad6dd456", "ff07dcaf-d2e5-4072-acf2-ff24023834e4",
                  "ac66d0b2-22fa-4634-8925-56ea09b7d5de", "6394f244-13a1-49fd-82a5-aa5bcd8ce104",
-                 "5253932e-4abb-4fd3-b7dc-7d48234206cf", "65fe1100-27a4-4e85-b7d8-74614ec80acb",
-                 "1293bfd0-713b-45cd-94fd-fe13282bdb04"]
+                 "5253932e-4abb-4fd3-b7dc-7d48234206cf",
+                 ]
 
 #"986931e0-b5d4-4f38-9f03-e1b780df0085", "c1427cbe-1197-48eb-87e5-32f07300b6b1",# 
 #"4e64678c-5fe7-4058-bb4f-16b3617cf30d", "563d99ce-c0d3-424e-86e3-5387473b2d44",#
@@ -24,7 +23,15 @@ ODDSPAPI_KEYS = ["572bfed2-72dc-478d-b533-612351082777", "40f80fc7-2b95-49b6-95e
 #"de79ae76-a137-4f9b-a270-96f034fcd438", "55065921-61ef-4f88-9198-a2f3bbb3e4b2",
 #"46799507-4b54-46a6-adf9-da80b7f042d5", "8f2d1d63-535c-406e-8a0d-56ca25be7736",
 #"436a4d91-9f29-49c7-ae8c-27b58e4ca0a6", 
-#"a7b8ed7d-56e4-415c-a942-606ca7bb95fb", "8aa4e6bb-f7da-482b-98c1-3085d0ed8c75", 
+#"a7b8ed7d-56e4-415c-a942-606ca7bb95fb", "8aa4e6bb-f7da-482b-98c1-3085d0ed8c75",
+
+#-----#28/06/26-----
+#572bfed2-72dc-478d-b533-612351082777, "40f80fc7-2b95-49b6-95ec-8ab0572df878"
+#"4c5877e7-9606-45e5-ac34-ef7e31c12642","e14ef489-3b75-4989-ac50-7178ea0c611b",
+#"c0cb97e1-a3b1-4561-bb75-3abb2b7f276e", "f77614f8-850c-481c-afe9-30421f4cd8b7",
+#"7f7c505f-0348-4ef8-8a47-9e5c37158bd5", "cd81185b-d640-4937-926b-14322ce77753",
+#"35b38755-05c6-4dc1-b103-bea481cc67ee", "8fa892eb-8cb4-44a8-8a2c-d14feacaeac9",
+#1293bfd0-713b-45cd-94fd-fe13282bdb04",
 
 
 BOOKMAKERS = [
@@ -47,8 +54,8 @@ USED_BOOKMAKERS = [
     "bwin.be",
 ]
 
-min_percentage_ov = 20 #10
-min_win_chance = 10 #10 #8
+min_percentage_ov = 5 #20 
+min_win_chance = 5 #10 
 
 SHEET_ID = "1Q2ALPTkGx8SICor1c4cDjZWI5Ewg_OKugvr0yUNY_WQ"
 CREDS_FILE = "credentials.json"
