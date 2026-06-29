@@ -16,6 +16,7 @@ from telegram.ext import (
 )
 import asyncio
 import apiwrapper_dev as api
+import uuid
 
 
 
@@ -57,12 +58,10 @@ async def calculate(update=None, context=None, bet=None):
 
     elif bet:
         pprint(f"DATAA {bet}")
-        ACTIVE_BETS[id(bet)] = bet
+        ACTIVE_BETS[bet["id"]] = bet
         data = bet
         pending = bet['pending']
         pending["decision"] = None
- 
-    ACTIVE_BETS[id(bet)] = bet
 
     print(id(bet))
     print(ACTIVE_BETS.keys())
@@ -117,7 +116,10 @@ async def calculate(update=None, context=None, bet=None):
     if bet == None:
         if context.user_data['pending']["awaiting_teams"][1] == 2:
             outcome_hedge = [i for i in data['outcomes'] if i != data['selection']['outcome']]
-            bookmaker = str([v['bookmaker'] for k, v in data['outcomes'].items() if k != value_team])
+            for k, v in data['outcomes'].items():
+                for i in v:
+                    if k != value_team:
+                        bookmaker = i['bookmaker']
 
             if hinge:
                 keyboard = [
@@ -219,8 +221,8 @@ Wil je deze bet loggen?
                 if data['type'] != None:
                     keyboard = [
                         [
-                            InlineKeyboardButton("✅ Ja",callback_data=f"bet_yes_{id(bet)}"),
-                            InlineKeyboardButton("❌ Nee",callback_data=f"bet_no_{id(bet)}")
+                            InlineKeyboardButton("✅ Ja",callback_data=f"bet_yes_{bet['id']}"),
+                            InlineKeyboardButton("❌ Nee",callback_data=f"bet_no_{bet['id']}")
                         ]
                     ]
 
@@ -366,6 +368,7 @@ async def handle_button(update, context):
     print("HANDLE BUTTON")
     query = update.callback_query
     parts = query.data.split("_")
+    print(f"parts: {parts}")
     pending = None
 
     await query.answer()
@@ -374,7 +377,7 @@ async def handle_button(update, context):
     
     if len(parts) == 3:
         print('yup')
-        bet_id = int(parts[2])
+        bet_id = parts[2]
         bet = ACTIVE_BETS.get(bet_id)
 
         if bet:
@@ -400,6 +403,7 @@ async def handle_button(update, context):
     if query.data.startswith("bet_yes"):
         pending["decision"] = True
         pending["decision_event"].set()
+        
 
     elif query.data.startswith("bet_no"):
         pending['decision'] = False
@@ -602,10 +606,10 @@ async def build_bet(update, context):
         await context.bot.send_message(chat_id=CHAT_ID, text="Aan het scannen voor opportuniteiten....")
         ACTIVE_BETS.clear()
 
-        tournaments = api.get_tournaments()[:50]
+        tournaments = (await asyncio.to_thread(api.get_tournaments))[:50]
         print(type(tournaments))
 
-        available = api.get_available_tournaments(
+        available = await asyncio.to_thread(api.get_available_tournaments,
             tournaments,
             BOOKMAKERS[0]
         )
@@ -630,7 +634,7 @@ async def build_bet(update, context):
                 fixtureid = fixture["fixtureId"]
                 start_time = fixture['startTime']
 
-                market_map = api.compare_bookmakers_for_fixture(fixture)
+                market_map = await asyncio.to_thread(api.compare_bookmakers_for_fixture, fixture)
                 results = analyse_market_data(market_map)
 
                 for markets, data in results.items():
@@ -658,6 +662,7 @@ async def build_bet(update, context):
                             "outcomes": defaultdict(list),
                             "stake": {},
                             "hedge": {},
+                            "id": uuid.uuid4().hex,
                             "selection": {},
                             "type": None,
                             "pending": {
@@ -689,22 +694,13 @@ async def build_bet(update, context):
                         print('--------------------------------')
         
                         task = asyncio.create_task(
-                            calculate(
-                                context=context,
-                                bet=bet
-                            )
+                            calculate(update=update, context=context, bet=bet)
                         )
 
-                        result = await task
-
-                        if result != None:
-                            if result is False:
-                                continue
-   
+                    
 # -----------------------------
 # MAIN
 # -----------------------------
-bot = Bot(token=TELEGRAM_TOKEN)
 application = (Application.builder().token(TELEGRAM_TOKEN).build())
 
 CURRENT_KEY = 0
@@ -714,12 +710,6 @@ async def main():
     #logger.get_settlements()
     
 def run():
-
-    application = (
-        Application.builder()
-        .token(TELEGRAM_TOKEN)
-        .build()
-    )
 
     application.add_handler(
         CallbackQueryHandler(handle_button)
