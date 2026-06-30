@@ -33,7 +33,7 @@ def rotate_ip():
 
     print("VPN IP roteren...")
     subprocess.run(
-        ["bash", "/home/pi/services/sportsscanner/rotate_vpn_on_call.sh"],
+        ["bash", "/home/pi/services/sportsbot/rotate_vpn_on_call.sh"],
         check=True
     )
 
@@ -160,16 +160,6 @@ def api_get(endpoint, params):
             )
             print(response)
             return response
-
-            
-    while response.status_code == 429:
-        for i in range(5):
-            params["apiKey"] = get_next_key()
-
-            response = requests.get(
-                BASE_URL + endpoint,
-                params=params
-            )
 
     response.raise_for_status()
 
@@ -450,7 +440,8 @@ async def main():
             and
             re.match(market_pattern, market_fixture)
         ):  
-            if not sheet.cell(row_index, settlement_col).value != "Ja" or "Nee":
+            if not sheet.cell(row_index, settlement_col).value == "Ja" or \
+                  sheet.cell(row_index, settlement_col).value == "Nee":
                 pairs.append(
                     (
                         event_fixture,
@@ -458,6 +449,8 @@ async def main():
                         row_index
                     )
                 )
+
+    print(f"pairs: {pairs}")
 
     grouped = defaultdict(list)
     
@@ -684,17 +677,3 @@ async def run():
 if __name__ == "__main__":
     asyncio.run(run())
     
-
-    
-    
-
-                      
-                        
-       
-                        
-
-
-                       
-
-
-
