@@ -33,7 +33,7 @@ def rotate_ip():
 
     print("VPN IP roteren...")
     subprocess.run(
-        ["bash", "/home/pi/services/sportsbot/rotate_vpn_on_call.sh"],
+        ["bash", "/home/pi/services/sportsscanner/rotate_vpn_on_call.sh"],
         check=True
     )
 
@@ -160,6 +160,16 @@ def api_get(endpoint, params):
             )
             print(response)
             return response
+
+            
+    while response.status_code == 429:
+        for i in range(5):
+            params["apiKey"] = get_next_key()
+
+            response = requests.get(
+                BASE_URL + endpoint,
+                params=params
+            )
 
     response.raise_for_status()
 

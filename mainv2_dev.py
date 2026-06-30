@@ -692,11 +692,8 @@ async def build_bet(update, context):
 
                         pprint(outcomes)
                         print('--------------------------------')
-        
-                        task = asyncio.create_task(
-                            calculate(update=update, context=context, bet=bet)
-                        )
-
+                        
+                        await calculate(update=update, context=context, bet=bet)
                     
 # -----------------------------
 # MAIN
