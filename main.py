@@ -158,12 +158,23 @@ def api_get(endpoint, params):
                 BASE_URL + endpoint,
                 params=params
             )
-            print(response)
-            return response
+            
+            data = response.json()
+            return data
+        
+    while response.status_code == 429:
+        for _ in range(10):
+            params["apiKey"] = get_next_key()
 
+            response = requests.get(
+                BASE_URL + endpoint,
+                params=params
+            )
+
+    data = response.json()
     response.raise_for_status()
 
-    return response.json()
+    return data
 
 # -----------------------------
 # TOURNAMENTS
@@ -440,8 +451,9 @@ async def main():
             and
             re.match(market_pattern, market_fixture)
         ):  
-            if not sheet.cell(row_index, settlement_col).value == "Ja" or \
-                  sheet.cell(row_index, settlement_col).value == "Nee":
+            settlement = row[settlement_col - 1].strip()
+
+            if settlement not in ("Ja", "Nee"):
                 pairs.append(
                     (
                         event_fixture,
@@ -453,6 +465,7 @@ async def main():
     print(f"pairs: {pairs}")
 
     grouped = defaultdict(list)
+    updates = []
     
     for event_fixture, market_fixture, row_idx in pairs:
         grouped[event_fixture].append(
@@ -479,12 +492,19 @@ async def main():
                 elif result == "UNDECIDED":
                     value = "Onbepaald"
 
-                sheet.update_cell(row_idx, settlement_col, value)
+                
+                updates.append({
+                "range": f"S{row_idx}",
+                "values": [[value]]
+                })
+
+                
                 
             except Exception as e:
                 print(f"Result van marketid {market_fixture} met eventid {event_fixture} niet kunnen ophalen: {e}")
                 sheet.update_cell(row_idx, settlement_col, "Onbekend")
 
+    sheet.batch_update(updates)
     tournaments = get_tournaments()[:100]
 
     print(

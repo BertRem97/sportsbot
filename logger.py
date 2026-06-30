@@ -70,6 +70,8 @@ def calculate_ev_stakes_wkelly(odds=None,
     f = (b*p - q) / b
 
     ev = (p * b) - (q * 1)
+    print(f"EV {ev}")
+    
 
     if b <= 0:
         return 0
@@ -220,7 +222,7 @@ def log_to_sheet(bet=None, league=None, land=None, teams=None, manual_input=Fals
 
 
 sheet = connect_sheet()
-bankroll = float(sheet.acell("T2").value.replace(",","."))
+bankroll = float(sheet.acell("T2").value.replace(".", "").replace(',', "."))
 # ---------------- MAIN ----------------
 
 def main():

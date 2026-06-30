@@ -25,7 +25,7 @@ CURRENT_KEY = 0
 
 def rotate_ip():
     subprocess.run(
-        ["bash", "/home/pi/services/sportsbot/rotate_vpn_on_call.sh"],
+        ["bash", "/home/pi/services/sportsscanner/rotate_vpn_on_call.sh"],
         check=True
     )
 
@@ -139,11 +139,25 @@ def api_get(endpoint, params):
                 BASE_URL + endpoint,
                 params=params
             )
-            return response.json()
+            data = response.json()
+            print(type(data))
+            return data
 
+
+    while response.status_code == 429:
+        for _ in range(10):
+            params["apiKey"] = get_next_key()
+
+            response = requests.get(
+                BASE_URL + endpoint,
+                params=params
+            )
+
+    data = response.json()
     response.raise_for_status()
 
-    return response.json()
+    print(type(data))
+    return data
 
 # -----------------------------
 # TOURNAMENTS
