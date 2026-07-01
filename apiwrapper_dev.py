@@ -90,6 +90,7 @@ def get_available_tournaments(
             )
 
             for fixture in fixtures:
+                print(type(fixture))
                 found_ids = {
                     fixture["tournamentId"]
                     }

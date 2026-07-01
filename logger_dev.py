@@ -27,6 +27,7 @@ def connect_sheet():
 # ---------------- GOOGLE SHEETS LOG ----------------
 
 def log_to_sheet(bet):
+    print("logging", bet)
     try:
         fixture_id, market_id = sheet.find(bet['event']["fixture_id"]), sheet.find(bet['event']["market_id"]) 
 
@@ -41,16 +42,19 @@ def log_to_sheet(bet):
     stake = bet['bet']['stake']
     selection = bet['bet']['selection']
 
-    outcomes_iter = iter(outcomes.items())
-    outcome, data = next(outcomes_iter)
-    outcome_data_1 = f"{outcome if outcome else ""} >> {data['odd']} @ {data['bookmaker']}"
-    outcome, data = next(outcomes_iter, (None, None))
-    outcome_data_2 = f"{outcome if outcome else ""} >> {data['odd']} @ {data['bookmaker']}" if outcome else ""
-    
 
+    outcome_data = "\n".join(
+    f"{outcome if outcome else ''} >> {item['odd']} @ {item['bookmaker']}"
+    for outcome, data in outcomes.items()
+    for item in data
+    )
+    
+    outcome_data_1 = outcome_data.split("\n")[0]
+    outcome_data_2 = outcome_data.split("\n")[1]
+    
     try:
-        outcome, data = next(outcomes_iter, (None, None))
-        outcome_data_3 = f"{outcome if outcome else ""} >> {data['odd']} @ {data['bookmaker']}" if outcome else ""
+
+        outcome_data_3 = outcome_data.split("\n")[2]
     except:
         outcome_data_3 = ""
 

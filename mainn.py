@@ -61,10 +61,12 @@ async def calculate(update=None, context=None, bet=None):
     data = bet['bet']
     pending = bet['pending']
     is_manual = data['manual']
+    data['type'] = None
+    data['hedge']['wanting_hedge'] = False
 
 
     value_team = data['selection']["outcome"]
-    data['type'] = None
+    
     outcomes = data['outcomes']
     value_odd = float(data["selection"]['odd'])
     bookie_val = data['selection']['bookmaker']
@@ -113,51 +115,7 @@ async def calculate(update=None, context=None, bet=None):
     data['stake']['stake_val'] = stake_value
     data['selection']['betslip'] = None
     ov = float(value_odd / (1 / win_chance) - 1) * 100 
- 
-    if is_manual:
-        if context.user_data['pending']["awaiting_teams"][1] == 2:
-            outcome_hedge = [i for i in data['outcomes'] if i != data['selection']['outcome']]
-            for k, v in data['outcomes'].items():
-                for i in v:
-                    if k != value_team:
-                        bookmaker = i['bookmaker']
 
-            if hinge:
-                keyboard = [
-                    [
-                        InlineKeyboardButton(text="Ja", callback_data="hinge_yes"),
-                        InlineKeyboardButton(text="Nope", callback_data="hinge_no")
-                    ]
-                ]
-
-                reply_markup = InlineKeyboardMarkup(keyboard)
-        
-                stake_x = hedge_stakes(stake_value, value_odd, other_odds)
-                total_stakes = stake_value + stake_x
-                secured_net_profit = payout - total_stakes
-                data['hedge'] = {'odd': other_odds, 'stake': stake_x, 'outcome': str(outcome_hedge),
-                                'bookmaker': bookmaker, "secured_profit": secured_net_profit}
-                
-                data['stake']['total_stakes'] = total_stakes
-
-                pending['hinge_event'].clear()
-                await context.bot.send_message(chat_id=CHAT_ID, text="Sure bet mogelijk, wil je hingen?", 
-                                    reply_markup=reply_markup)
-        
-                await pending['hinge_event'].wait()
-                decision = pending['decision']
-
-                data['hedge']['wanting_hedge'] = False
-                if decision:
-                    data['hedge']['wanting_hedge'] = True
-                    data['type'] = 'surebet'
-
-                context.user_data['pending']["awaiting_teams"][1] = None
-
-            else:
-                min_odds, min_stake = calculate_hinge_1X2_after(value_odd, stake_value)
-                data['hedge'] = {"min_odd_other_p": min_odds, "min_stake_other_p": min_stake,
-                            'outcome': str(outcome_hedge), 'bookmaker': bookmaker}
 
     win_chance = avg_chance_win * 100
     ov = float(value_odd / (1 / avg_chance_win) - 1) * 100
@@ -165,12 +123,73 @@ async def calculate(update=None, context=None, bet=None):
     print(f"EV: {ev}")
 
     if (avg_chance_win / (1 / value_odd) - 1) * 100 >= min_percentage_ov:
+        print('YUP')
         if win_chance >= min_win_chance:
+            print("OKK")
             if ev > 0:
-                print("under_conditions!")
+                print("YESSSS")
+                ACTIVE_BETS[data['id']] = bet
+
+                if is_manual:
+                    if context.user_data['pending']["awaiting_teams"][1] == 2:
+                        outcome_hedge = [i for i in data['outcomes'] if i != data['selection']['outcome']]
+                        for k, v in data['outcomes'].items():
+                            for i in v:
+                                if k != value_team:
+                                    bookmaker = i['bookmaker']
+                        
+
+                        if hinge:
+                            keyboard = [
+                                [
+                                    InlineKeyboardButton(text="Ja", callback_data=f"hinge_yes_{bet['id']}"),
+                                    InlineKeyboardButton(text="Nope", callback_data=f"hinge_no_{bet['id']}")
+                                ]
+                            ]
+
+                            reply_markup = InlineKeyboardMarkup(keyboard)
+                    
+                            stake_x = hedge_stakes(stake_value, value_odd, other_odds)
+                            total_stakes = stake_value + stake_x
+                            secured_net_profit = payout - total_stakes
+                            data['hedge'] = {'odd': other_odds, 'stake': stake_x, 'outcome': str(outcome_hedge),
+                                            'bookmaker': bookmaker, "secured_profit": secured_net_profit}
+                            
+                            data['stake']['total_stakes'] = total_stakes
+
+                            
+                            async with BET_LOCK:
+
+                                ACTIVE_BETS[data['id']] = bet
+                                pending['hinge_event'].clear()
+
+                                await context.bot.send_message(
+                                    chat_id=CHAT_ID,
+                                    text="Sure bet mogelijk, wil je hingen?" \
+                                    "Je riskeert: \n€{stake_x:.2f} --> {bookmaker} @ {outcome_hedge}\n"
+                                    "€{stake_value:.2f} --> {bookie_val} @ {value_odd}\n" \
+                                    "gegarandeerde winst €{secured_net_profit:.2f}",
+                                    reply_markup=reply_markup
+                                )
+
+                                await pending['hinge_event'].wait()
+
+                                decision = pending['hinge']
+                    
+                                if decision:
+                                    data['hedge']['wanting_hedge'] = True
+                                    data['type'] = 'surebet'
+
+                        else:
+                            min_odds, min_stake = calculate_hinge_1X2_after(value_odd, stake_value)
+                            data['hedge'] = {"min_odd_other_p": min_odds, "min_stake_other_p": min_stake,
+                                        'outcome': str(outcome_hedge), 'bookmaker': bookmaker}
+                
+
                 if data['type'] != 'surebet':
                     data['type'] = "valuebet"
 
+                pprint(bet)
                 outcome_lines = "\n".join(
                         f"{x['bookmaker']} @ {x['odd']}"
                         for x in data["outcomes"][None])
@@ -208,7 +227,7 @@ Stake value bet: €{data["stake"]["stake_val"]:.2f}
 {f"Stake hedge bet: €{data['hedge']['stake']:.2f}" if data['type'] == "surebet" else ""} 
 
 Bookmaker:
-{bookie_val} @ {data["selection"]["odd"]}
+{bookie_val} @ {value_odd}
 {profit}
 ------------------------
 {outcome_lines if outcome_lines else ""}
@@ -219,8 +238,6 @@ if data['selection']['betslip'] else ""}
 Wil je deze bet loggen?
 """
                 print(msg)
-                
-                ACTIVE_BETS[data['id']] = bet
                 if data['type'] != None:
                     keyboard = [
                         [
@@ -244,26 +261,22 @@ Wil je deze bet loggen?
                             reply_markup=reply_markup
                         )
 
-                        print("Wachten op beslissing")
-
                         await pending['decision_event'].wait()
-
+ 
                         decision = pending['decision']
-
-                        print(f"Beslissing ontvangen: {decision}")
+                        print(decision)
 
                         if decision:
                             if logger.log_to_sheet(bet=bet):
                                 print("✔ Opgeslagen in Google Sheets")
-
-                        ACTIVE_BETS.pop(data['id'], None)
+                                ACTIVE_BETS.pop(data['id'], None)
+                                
+                                context.user_data['pending']["awaiting_teams"][1] = None
 
                         
 
 async def handle_button(update, context):
-    print("HANDLEING BUTTON")
-    print(update)
-   
+
     bet = next(iter(ACTIVE_BETS.values()))
     pending = bet["pending"]
     query = update.callback_query
@@ -609,9 +622,6 @@ async def build_bet(update, context):
         
 
         tournaments = (await asyncio.to_thread(api.get_tournaments))[:50]
-        print(type(tournaments))
-
-            
         available = await asyncio.to_thread(api.get_available_tournaments,
             tournaments,
             BOOKMAKERS[0]
@@ -696,9 +706,6 @@ async def build_bet(update, context):
                         selection['fixture_id'] = fixtureid
                         selection['outcome'] = None
 
-                        pprint(outcomes)
-                        print('--------------------------------')
-                        
                         context.application.create_task(
                             calculate(
                                 update=update,
@@ -706,7 +713,6 @@ async def build_bet(update, context):
                                 bet=bet_data
                             )
                         )
-
 
 CURRENT_KEY = 0
 
