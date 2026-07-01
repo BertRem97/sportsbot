@@ -25,6 +25,12 @@ LAST_REQUEST = 0
 # CONFIG
 # -----------------------------
 
+try:
+    ...
+except Exception:
+    import traceback
+    traceback.print_exc()
+
 def calculate_hinge_1X2_after(odd_val, stake_val):
     total_implied_odds = 0.99
     chance_val = 1 / odd_val
@@ -264,21 +270,22 @@ async def handle_button(update, context):
 
     if query.data == "bet_yes":
 
-        decision = True
+        pending = True
 
         await query.message.reply_text(
             "✅ Bet bevestigd"
         )
+        decision_event.set()
 
     elif query.data == "bet_no":
 
-        decision = False
+        pending = False
 
         await query.message.reply_text(
             "❌ Bet geweigerd"
         )
-
-    decision_event.set()
+        decision_event.set()
+    
 
 # -----------------------------
 # MAIN
@@ -552,7 +559,8 @@ async def build_bet(update, context):
             "decision": None,
             "decision_event": asyncio.Event(),
             "hinge_event": asyncio.Event()
-        },
+        }
+
         data['manual'] = True
 
         keyboard = [
