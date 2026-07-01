@@ -25,11 +25,7 @@ LAST_REQUEST = 0
 # CONFIG
 # -----------------------------
 
-try:
-    ...
-except Exception:
-    import traceback
-    traceback.print_exc()
+BET_LOCK = asyncio.Lock()
 
 def calculate_hinge_1X2_after(odd_val, stake_val):
     total_implied_odds = 0.99
@@ -228,8 +224,8 @@ Wil je deze bet loggen?
                 if data['type'] != None:
                     keyboard = [
                         [
-                            InlineKeyboardButton("✅ Ja",callback_data=f"bet_yes"),
-                            InlineKeyboardButton("❌ Nee",callback_data=f"bet_no")
+                            InlineKeyboardButton("✅ Ja",callback_data=f"bet_yes_{data['id']}"),
+                            InlineKeyboardButton("❌ Nee",callback_data=f"bet_no_{data['id']}")
                         ]
                     ]
 
@@ -237,55 +233,88 @@ Wil je deze bet loggen?
 
                     pending['decision_event'].clear()
 
-                    await context.bot.send_message(
-                        chat_id=CHAT_ID,
-                        text=msg,
-                        reply_markup=reply_markup
-                    )
+                    async with BET_LOCK:
 
+                        ACTIVE_BETS[data['id']] = bet
+                        pending['decision_event'].clear()
 
-                    await pending['decision_event'].wait()
-                    decision = pending['decision']
+                        await context.bot.send_message(
+                            chat_id=CHAT_ID,
+                            text=msg,
+                            reply_markup=reply_markup
+                        )
 
-                    if decision:
-                        if logger.log_to_sheet(bet=bet):
-                            print("✔ Opgeslagen in Google Sheets")
-                            ACTIVE_BETS.pop('id')
-                        else:
-                            print("Fout tijdens het loggen")
-                    
+                        print("Wachten op beslissing")
+
+                        await pending['decision_event'].wait()
+
+                        decision = pending['decision']
+
+                        print(f"Beslissing ontvangen: {decision}")
+
+                        if decision:
+                            if logger.log_to_sheet(bet=bet):
+                                print("✔ Opgeslagen in Google Sheets")
+
+                        ACTIVE_BETS.pop(data['id'], None)
+
                         
 
 async def handle_button(update, context):
     print("HANDLEING BUTTON")
     print(update)
-
+   
     bet = next(iter(ACTIVE_BETS.values()))
     pending = bet["pending"]
-    decision = pending['decision']
-    decision_event = pending['decision_event']
     query = update.callback_query
-
+    bet_id = query.data.split("_")[-1]
     await query.answer()
 
-    if query.data == "bet_yes":
+    parts = query.data.split("_")
 
-        pending = True
+    if query.data == "outcomes_3":
+        pending["awaiting_teams"] = [True, 3]
+        await context.bot.send_message(chat_id=CHAT_ID, 
+                                    text="Voer de teamnames in volgens volgend formaat: 'Belgie - Iran'",
+                                    reply_markup=ForceReply(selective=True))
+        
+    elif query.data == "outcomes_2":
+        pending["awaiting_teams"] = [True, 2]
+        await context.bot.send_message(chat_id=CHAT_ID, 
+                                    text="Voer de teamnames in volgens volgend formaat: 'Belgie - Iran'",
+                                    reply_markup=ForceReply(selective=True))
+        
+        
+    if query.data == "hinge_yes":
+        pending['decision'] = True
+        pending['hinge_event'].set()
+        await query.message.reply_text(
+            "✅ Hinge bevestigd"
+        )
+
+    elif query.data == "hinge_no":
+        pending['decision'] = False
+        pending['hinge_event'].set()
+        await query.message.reply_text(
+            "❌ Hinge geweigerd"
+        )
+
+    if query.data == f"bet_yes_{bet_id}":
+
+        pending['decision'] = True
 
         await query.message.reply_text(
             "✅ Bet bevestigd"
         )
-        decision_event.set()
+        pending['decision_event'].set()
 
-    elif query.data == "bet_no":
+    elif query.data == f"bet_no_{bet_id}":
 
-        pending = False
-
+        pending['decision'] = False
         await query.message.reply_text(
             "❌ Bet geweigerd"
         )
-        decision_event.set()
-    
+        pending['decision_event'].set() 
 
 # -----------------------------
 # MAIN
@@ -670,7 +699,13 @@ async def build_bet(update, context):
                         pprint(outcomes)
                         print('--------------------------------')
                         
-                        await calculate(update=update, context=context, bet=bet_data)
+                        context.application.create_task(
+                            calculate(
+                                update=update,
+                                context=context,
+                                bet=bet_data
+                            )
+                        )
 
 
 CURRENT_KEY = 0
@@ -679,12 +714,12 @@ CURRENT_KEY = 0
 def run():
 
     application = (
-        Application.builder()
-        .token(TELEGRAM_TOKEN)
-        .build()
+    Application.builder()
+    .token(TELEGRAM_TOKEN)
+    .concurrent_updates(True)
+    .build()
     )
-    print(application.handlers)
-
+    
 
     application.add_handler(
         CallbackQueryHandler(
