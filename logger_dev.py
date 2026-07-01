@@ -7,6 +7,7 @@ from collections import defaultdict
 import re
 import apiwrapper_dev as api
 
+
 # ---------------- GOOGLE SHEETS ----------------
 
 SCOPES = [
@@ -172,7 +173,7 @@ def get_settlements():
                 
             except Exception as e:
                 print(f"Result van marketid {market_fixture} met eventid {event_fixture} niet kunnen ophalen: {e}")
-                sheet.update_cell(row_idx, settlement_col, "Onbekend")
+                sheet.update_cell(row_idx, settlement_col, "UNKNOWN")
 
 
 sheet = connect_sheet()

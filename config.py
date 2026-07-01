@@ -87,8 +87,8 @@ USED_BOOKMAKERS = [
     "bwin.be",
 ]
 
-min_percentage_ov = 5 #20 
-min_win_chance = 5 #10 
+min_percentage_ov = 20 
+min_win_chance = 10 
 
 SHEET_ID = "1Q2ALPTkGx8SICor1c4cDjZWI5Ewg_OKugvr0yUNY_WQ"
 CREDS_FILE = "credentials.json"

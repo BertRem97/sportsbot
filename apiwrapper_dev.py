@@ -7,7 +7,6 @@ from config import ODDSPAPI_KEYS
 from config import BOOKMAKERS, USED_BOOKMAKERS
 from config import TELEGRAM_TOKEN, CHAT_ID
 from logger import * 
-from mainv2_dev import *
 import subprocess
 import asyncio
 import subprocess
