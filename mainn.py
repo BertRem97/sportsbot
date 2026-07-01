@@ -142,8 +142,8 @@ async def calculate(update=None, context=None, bet=None):
                         if hinge:
                             keyboard = [
                                 [
-                                    InlineKeyboardButton(text="Ja", callback_data=f"hinge_yes_{bet['id']}"),
-                                    InlineKeyboardButton(text="Nope", callback_data=f"hinge_no_{bet['id']}")
+                                    InlineKeyboardButton(text="Ja", callback_data=f"hinge_yes-{data['id']}"),
+                                    InlineKeyboardButton(text="Nope", callback_data=f"hinge_no-{data['id']}")
                                 ]
                             ]
 
@@ -165,10 +165,13 @@ async def calculate(update=None, context=None, bet=None):
 
                                 await context.bot.send_message(
                                     chat_id=CHAT_ID,
-                                    text="Sure bet mogelijk, wil je hingen?" \
-                                    "Je riskeert: \n€{stake_x:.2f} --> {bookmaker} @ {outcome_hedge}\n"
-                                    "€{stake_value:.2f} --> {bookie_val} @ {value_odd}\n" \
-                                    "gegarandeerde winst €{secured_net_profit:.2f}",
+                                    text=f"""
+                                    Sure bet mogelijk, wil je hingen?"\n
+                                    Je riskeert: \n€{stake_x:.2f} --> {bookmaker} @ {outcome_hedge}\n"
+                                    €{stake_value:.2f} --> {bookie_val} @ {value_odd}\n" \
+                                    gegarandeerde winst €{secured_net_profit:.2f}
+
+                                    """,
                                     reply_markup=reply_markup
                                 )
 
@@ -241,8 +244,8 @@ Wil je deze bet loggen?
                 if data['type'] != None:
                     keyboard = [
                         [
-                            InlineKeyboardButton("✅ Ja",callback_data=f"bet_yes_{data['id']}"),
-                            InlineKeyboardButton("❌ Nee",callback_data=f"bet_no_{data['id']}")
+                            InlineKeyboardButton("✅ Ja",callback_data=f"bet_yes-{data['id']}"),
+                            InlineKeyboardButton("❌ Nee",callback_data=f"bet_no-{data['id']}")
                         ]
                     ]
 
@@ -275,15 +278,16 @@ Wil je deze bet loggen?
 
                         
 
-async def handle_button(update, context):
-
-    bet = next(iter(ACTIVE_BETS.values()))
-    pending = bet["pending"]
+async def handle_button(update, context): 
     query = update.callback_query
-    bet_id = query.data.split("_")[-1]
     await query.answer()
 
-    parts = query.data.split("_")
+    pending = context.user_data['pending']
+    bet_id = query.data.split("-")[-1]
+    if ACTIVE_BETS:
+        bet = ACTIVE_BETS[bet_id]
+        pending = bet["pending"]
+    
 
     if query.data == "outcomes_3":
         pending["awaiting_teams"] = [True, 3]
@@ -298,14 +302,14 @@ async def handle_button(update, context):
                                     reply_markup=ForceReply(selective=True))
         
         
-    if query.data == "hinge_yes":
+    if query.data == f"hinge_yes_{bet_id}":
         pending['decision'] = True
         pending['hinge_event'].set()
         await query.message.reply_text(
             "✅ Hinge bevestigd"
         )
 
-    elif query.data == "hinge_no":
+    elif query.data == f"hinge_no_{bet_id}":
         pending['decision'] = False
         pending['hinge_event'].set()
         await query.message.reply_text(
